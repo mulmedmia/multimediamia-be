@@ -1,55 +1,29 @@
 export const response = {
-  success: (
-    res,
-    data = null,
-    message = "Success",
-    statusCode = 200,
-    metadata = null
-  ) => {
-    if (data && data.token) {
-      const { token, ...dataWithoutToken } = data;
-      return res.status(statusCode).json({
-        status: "success",
-        message,
-        data: dataWithoutToken,
-        token,
-        ...(metadata && { metadata }),
-      });
-    }
-
-    if (metadata) {
-      return res.status(statusCode).json({
-        status: "success",
-        message,
-        data,
-        metadata,
-      });
-    }
-
+  success: (res, data, message = "Success", statusCode = 200) => {
     return res.status(statusCode).json({
-      status: "success",
+      status: true,
       message,
       data,
     });
   },
 
-  error: (
-    res,
-    message = "Internal server error",
-    statusCode = 500,
-    errors = null
-  ) => {
-    return res.status(statusCode).json({
-      status: "error",
+  error: (res, message = "Error", statusCode = 500, error = null) => {
+    const response = {
+      status: false,
       message,
-      errors,
-    });
+    };
+
+    if (error) {
+      response.error = process.env.NODE_ENV === "development" ? error : null;
+    }
+
+    return res.status(statusCode).json(response);
   },
 
-  validation: (res, errors) => {
-    return res.status(422).json({
-      status: "error",
-      message: "Validation error",
+  validation: (res, errors, message = "Validation error", statusCode = 422) => {
+    return res.status(statusCode).json({
+      status: false,
+      message,
       errors,
     });
   },
