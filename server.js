@@ -1,8 +1,12 @@
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import morgan from 'morgan';
-import authRouter from './src/routes/auth-routes.js';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import morgan from "morgan";
+import router from "./src/routes/index.routes.js";
+import {
+  errorHandler,
+  notFoundHandler,
+} from "./src/middleware/errorHandler.js";
 
 dotenv.config();
 
@@ -26,7 +30,7 @@ app.get("/", (req, res) => {
   const serverUptime = process.uptime().toFixed(2) + " seconds";
 
   res.json({
-    message: "Welcome to Trash4Cash API",
+    message: "Welcome to KSM Multimedia API",
     version: "1.0.0",
     serverTime: currentTime,
     serverUptime: serverUptime,
@@ -34,18 +38,24 @@ app.get("/", (req, res) => {
     endpoints: {
       base: "/api/v1",
       users: "/api/v1/users",
-      auth: "/api/v1/auth"
     },
     status: "operational",
   });
 });
 
-app.use('/api/v1/auth', authRouter);
+// routes
+app.use("/api/v1", router);
+
+// Handle errors
+app.use(errorHandler);
+app.use(notFoundHandler);
 
 // Optional: Error handler middleware (tidak wajib, tapi best practice)
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Internal Server Error', error: err.message });
+  res
+    .status(500)
+    .json({ message: "Internal Server Error", error: err.message });
 });
 
 const PORT = process.env.PORT || 3000;
