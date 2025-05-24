@@ -1,10 +1,50 @@
 import { registerUser, loginUser } from "../services/auth.service.js";
+import { createOTP, verifyOTP } from "../services/otp.service.js";
 import { response } from "../utils/response.js";
+import prisma from "../config/prisma.js";
 
+// New function to request OTP
+export const requestOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Check if email already exists before sending OTP
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+    
+    if (existingUser) {
+      return response.error(res, "Email already registered", 400);
+    }
+    
+    // Generate and send OTP
+    await createOTP(email);
+    
+    return response.success(
+      res,
+      { email },
+      "OTP sent to your email",
+      200
+    );
+  } catch (error) {
+    return response.error(res, "Failed to send OTP", 500, error.message);
+  }
+};
+
+// Modified register function to require OTP verification
 export const register = async (req, res) => {
   try {
-    // Register user (validation happens in middleware)
-    const user = await registerUser(req.body);
+    const { email, otp, ...userData } = req.body;
+    
+    // Verify OTP
+    const isOtpValid = await verifyOTP(email, otp);
+    
+    if (!isOtpValid) {
+      return response.error(res, "Invalid or expired OTP", 400);
+    }
+    
+    // Register user after OTP verification
+    const user = await registerUser({ email, ...userData });
     
     return response.success(
       res,

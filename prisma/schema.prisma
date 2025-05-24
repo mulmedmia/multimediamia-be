@@ -77,6 +77,15 @@ model Registration {
   category Category @relation(fields: [category_id], references: [category_id])
 }
 
+model OTP {
+  id         String   @id @default(cuid())
+  email      String
+  code       String
+  expires_at DateTime
+  created_at DateTime @default(now())
+
+  @@index([email])
+}
 enum Role {
   USER
   ADMIN
