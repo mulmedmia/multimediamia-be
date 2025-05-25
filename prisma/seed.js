@@ -8,8 +8,8 @@ const prisma = new PrismaClient();
 
 async function main() {
   const adminPassword = process.env.ADMIN_PASSWORD;
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@ksmmultimedia.com";
-  const adminName = process.env.ADMIN_NAME || "Administrator";
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminName = process.env.ADMIN_NAME;
 
   if (!adminPassword) {
     throw new Error("ADMIN_PASSWORD environment variable is required");
