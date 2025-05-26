@@ -12,6 +12,7 @@ export const createCategorySchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   deadline: z.string().datetime({ message: "Invalid deadline format" }),
+  team_type: z.enum(["INDIVIDUAL", "GROUP"]).default("INDIVIDUAL"),
   status: z.enum(["VERIFIED", "NOT_VERIFIED"]).default("NOT_VERIFIED"),
 });
 
@@ -43,5 +44,6 @@ export const updateCategorySchema = z.object({
     .string()
     .datetime({ message: "Invalid deadline format" })
     .optional(),
+  team_type: z.enum(["INDIVIDUAL", "GROUP"]).optional(),
   status: z.enum(["VERIFIED", "NOT_VERIFIED"]).optional(),
 });

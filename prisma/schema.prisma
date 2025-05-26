@@ -54,6 +54,7 @@ model Category {
   description   String
   deadline      DateTime
   image         String
+  team_type     TeamType           @default(INDIVIDUAL) 
   status        VerificationStatus
   created_at    DateTime           @default(now())
   updated_at    DateTime           @updatedAt
@@ -67,8 +68,8 @@ model Registration {
   user_id         String
   category_id     String
   file_url        String
-  team            String
-  team_name       String
+  team_name       String? 
+  team_members    String?  
   is_verified     Boolean
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
@@ -94,4 +95,9 @@ enum Role {
 enum VerificationStatus {
   VERIFIED
   NOT_VERIFIED
+}
+
+enum TeamType {
+  INDIVIDUAL
+  GROUP
 }
