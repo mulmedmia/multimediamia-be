@@ -16,15 +16,20 @@ datasource db {
 model User {
   users_id   String   @id @default(cuid())
   name       String
+  nim        String?  @unique
   email      String   @unique
   password   String
   role       Role     @default(USER)
+  point      String?
+  badge      String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   blogs         Blog[]
   categories    Category[]
   registrations Registration[]
+  peminatan     peminatan[]
+  kelas        kelas[]
 }
 
 model Blog {
@@ -87,9 +92,33 @@ model OTP {
 
   @@index([email])
 }
+
+model peminatan{
+  peminatan_id     String @id @default(cuid())
+  user_id          String
+  nama_peminatan   String
+  imageUrl         String  
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  user          User           @relation(fields: [user_id], references: [users_id])
+}
+
+model kelas{
+  kelas_id         String @id @default(cuid())
+  user_id          String
+  nama_kelas       String
+  linkClassroom    String  
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  user          User           @relation(fields: [user_id], references: [users_id])
+}
+
 enum Role {
   USER
   ADMIN
+  MENTOR
 }
 
 enum VerificationStatus {
