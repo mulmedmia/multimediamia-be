@@ -4,6 +4,7 @@ import blogRoutes from "./blog.routes.js";
 import categoryRoutes from "./category.routes.js";
 import registrationRoutes from "./registration.routes.js"; 
 import peminatanRoutes from "./peminatan.routes.js";
+import kelasRoutes from "./kelas.routes.js"; // TAMBAHAN
 
 const router = Router();
 
@@ -12,5 +13,6 @@ router.use("/blogs", blogRoutes);
 router.use("/categories", categoryRoutes);
 router.use("/registrations", registrationRoutes); 
 router.use("/peminatan", peminatanRoutes);
+router.use("/kelas", kelasRoutes); // TAMBAHAN
 
 export default router;

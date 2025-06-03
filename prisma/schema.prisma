@@ -29,7 +29,9 @@ model User {
   categories    Category[]
   registrations Registration[]
   peminatan     peminatan[]
-  kelas        kelas[]
+  kelas         kelas[]
+  // Tambahan: User bisa memiliki banyak kelas melalui enrollment
+  enrollments   UserKelas[]
 }
 
 model Blog {
@@ -102,17 +104,36 @@ model peminatan{
   updated_at       DateTime @updatedAt
 
   user          User           @relation(fields: [user_id], references: [users_id])
+  // Tambahan: Peminatan bisa memiliki banyak kelas
+  kelas         kelas[]
 }
 
 model kelas{
   kelas_id         String @id @default(cuid())
-  user_id          String
+  user_id          String // creator/instructor
+  peminatan_id     String // TAMBAHAN: relasi ke peminatan
   nama_kelas       String
   linkClassroom    String  
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
 
-  user          User           @relation(fields: [user_id], references: [users_id])
+  user             User           @relation(fields: [user_id], references: [users_id])
+  peminatan        peminatan      @relation(fields: [peminatan_id], references: [peminatan_id])
+  // Tambahan: Many-to-many dengan User untuk enrollment
+  enrollments      UserKelas[]
+}
+
+// TAMBAHAN: Junction table untuk User dan Kelas (many-to-many)
+model UserKelas {
+  id          String   @id @default(cuid())
+  user_id     String
+  kelas_id    String
+  enrolled_at DateTime @default(now())
+  
+  user        User     @relation(fields: [user_id], references: [users_id])
+  kelas       kelas    @relation(fields: [kelas_id], references: [kelas_id])
+  
+  @@unique([user_id, kelas_id]) // Prevent duplicate enrollments
 }
 
 enum Role {
