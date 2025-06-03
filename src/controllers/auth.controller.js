@@ -78,3 +78,20 @@ export const login = async (req, res) => {
     return response.error(res, "Failed to login", 500, error.message);
   }
 };
+
+// Di user.controller.js atau gamification.controller.js
+export const updateUserPoints = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { points, badge } = req.body;
+
+    const updatedUser = await updateUserPointsAndBadge(userId, { points, badge });
+    
+    return response.success(res, updatedUser, "User points and badge updated successfully");
+  } catch (error) {
+    if (error.message === "User not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to update user points", 500, error.message);
+  }
+};
