@@ -10,6 +10,8 @@ import {
   unenrollFromKelas,
 } from "../controllers/kelas.controller.js";
 import { authenticateToken, isAdminOrMentor } from "../middleware/jwtAuth.js";
+import { getKelasLeaderboardController } from "../controllers/gamification.controller.js";
+
 
 const router = Router();
 
@@ -21,7 +23,7 @@ router.get("/:kelasId/murid", getMuridInKelas); // GET /api/v1/kelas/xxx/murid?b
 // Protected routes for users
 router.post("/:kelasId/enroll", authenticateToken, enrollToKelas);
 router.delete("/:kelasId/unenroll", authenticateToken, unenrollFromKelas);
-
+router.get("/:kelasId/leaderboard", getKelasLeaderboardController); // GET /api/v1/kelas/xxx/leaderboard
 // Protected routes for admin/mentor
 router.post("/", authenticateToken, isAdminOrMentor, createNewKelas);
 router.patch("/:id", authenticateToken, isAdminOrMentor, updateExistingKelas);

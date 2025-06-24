@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const updatePointsSchema = z.object({
-  points: z.number().min(0, "Points must be a positive number"),
+  points: z.number(),
   badge: z.string().optional(),
 });
 

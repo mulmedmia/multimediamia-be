@@ -1,24 +1,34 @@
 import prisma from "../config/prisma.js";
 
 // Update user points and badge (Admin/Mentor only)
+// Update user points and badge (Admin/Mentor only)
 export const updateUserPointsAndBadge = async (userId, data) => {
   const { points, badge } = data;
   
-  // Check if user exists
+  // Check if user exists and get current points
   const user = await prisma.user.findUnique({
     where: { users_id: userId },
-    select: { users_id: true, name: true, email: true }
+    select: { 
+      users_id: true, 
+      name: true, 
+      email: true,
+      point: true // Ambil point yang sudah ada
+    }
   });
   
   if (!user) {
     throw new Error("User not found");
   }
 
+  // Calculate new points (add to existing points)
+  const currentPoints = user.point ? parseInt(user.point) : 0;
+  const newPoints = points !== undefined ? currentPoints + points : currentPoints;
+
   // Update user
   const updatedUser = await prisma.user.update({
     where: { users_id: userId },
     data: {
-      ...(points !== undefined && { point: points.toString() }),
+      ...(points !== undefined && { point: newPoints.toString() }),
       ...(badge && { badge }),
       updated_at: new Date()
     },
@@ -214,4 +224,101 @@ export const updateUserProfile = async (userId, profileData) => {
   });
 
   return updatedUser;
+};
+
+// Get leaderboard by kelas
+export const getKelasLeaderboard = async (kelasId, filters = {}) => {
+  const { limit = 10, page = 1 } = filters;
+  const skip = (page - 1) * limit;
+
+  // First check if kelas exists
+  const kelas = await prisma.kelas.findUnique({
+    where: { kelas_id: kelasId },
+    select: { 
+      kelas_id: true, 
+      nama_kelas: true,
+      peminatan: {
+        select: {
+          nama_peminatan: true
+        }
+      }
+    }
+  });
+
+  if (!kelas) {
+    throw new Error("Kelas not found");
+  }
+
+  // Get users enrolled in this kelas with their points
+  const enrolledUsers = await prisma.userKelas.findMany({
+    where: { 
+      kelas_id: kelasId,
+      user: {
+        point: {
+          not: null
+        }
+      }
+    },
+    include: {
+      user: {
+        select: {
+          users_id: true,
+          name: true,
+          nim: true,
+          point: true,
+          badge: true,
+          created_at: true
+        }
+      }
+    },
+    orderBy: [
+      {
+        user: {
+          point: 'desc'
+        }
+      },
+      {
+        user: {
+          name: 'asc'
+        }
+      }
+    ],
+    take: limit,
+    skip: skip
+  });
+
+  // Count total enrolled users with points
+  const totalEnrolledUsers = await prisma.userKelas.count({
+    where: { 
+      kelas_id: kelasId,
+      user: {
+        point: {
+          not: null
+        }
+      }
+    }
+  });
+
+  return {
+    kelas_info: {
+      kelas_id: kelas.kelas_id,
+      nama_kelas: kelas.nama_kelas,
+      peminatan: kelas.peminatan.nama_peminatan
+    },
+    data: enrolledUsers.map((enrollment, index) => ({
+      users_id: enrollment.user.users_id,
+      name: enrollment.user.name,
+      nim: enrollment.user.nim,
+      point: enrollment.user.point ? parseInt(enrollment.user.point) : 0,
+      badge: enrollment.user.badge,
+      rank: skip + index + 1,
+      created_at: enrollment.user.created_at
+    })),
+    pagination: {
+      page,
+      limit,
+      total: totalEnrolledUsers,
+      totalPages: Math.ceil(totalEnrolledUsers / limit)
+    }
+  };
 };

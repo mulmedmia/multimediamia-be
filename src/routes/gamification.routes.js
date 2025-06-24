@@ -4,7 +4,8 @@ import {
   getLeaderboard,
   getUserStatistics,
   getMyProfile,
-  updateMyProfile
+  updateMyProfile,
+  getKelasLeaderboardController
 } from "../controllers/gamification.controller.js";
 import { authenticateToken, isAdminOrMentor } from "../middleware/jwtAuth.js";
 
@@ -13,6 +14,9 @@ const router = Router();
 // Public routes
 router.get("/leaderboard", getLeaderboard);
 
+router.get("/kelas/:kelasId/leaderboard", getKelasLeaderboardController); // GET /api/v1/gamification/kelas/xxx/leaderboard
+
+// ...existing code...
 // Protected routes - User can access their own data
 router.get("/profile", authenticateToken, getMyProfile);
 router.patch("/profile", authenticateToken, updateMyProfile);

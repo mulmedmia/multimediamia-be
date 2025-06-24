@@ -2,7 +2,8 @@ import {
   updateUserPointsAndBadge, 
   getUserLeaderboard, 
   getUserStats,
-  updateUserProfile
+  updateUserProfile,
+  getKelasLeaderboard
 } from "../services/gamification.service.js";
 import { response } from "../utils/response.js";
 import { updatePointsSchema, updateProfileSchema } from "../models/gamification.model.js";
@@ -124,5 +125,29 @@ export const updateMyProfile = async (req, res) => {
       return response.error(res, error.message, 400);
     }
     return response.error(res, "Failed to update profile", 500, error.message);
+  }
+};
+
+// Get leaderboard by kelas
+export const getKelasLeaderboardController = async (req, res) => {
+  try {
+    const { kelasId } = req.params;
+    const { limit = 10, page = 1 } = req.query;
+    
+    const leaderboard = await getKelasLeaderboard(kelasId, {
+      limit: parseInt(limit),
+      page: parseInt(page)
+    });
+    
+    return response.success(
+      res, 
+      leaderboard, 
+      "Kelas leaderboard retrieved successfully"
+    );
+  } catch (error) {
+    if (error.message === "Kelas not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to get kelas leaderboard", 500, error.message);
   }
 };
