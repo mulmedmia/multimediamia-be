@@ -9,6 +9,7 @@ const findUserByEmail = async (email) => {
   });
 };
 
+
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
@@ -17,6 +18,7 @@ const createUser = async (userData) => {
     data: {
       ...userData,
       password: hashedPassword,
+      is_verified: false,
     },
   });
 };
@@ -27,11 +29,12 @@ const validatePassword = async (plainPassword, hashedPassword) => {
 
 // Auth services
 export const registerUser = async (userData) => {
-  // Check if user already exists
-  const existingUser = await findUserByEmail(userData.email);
-  if (existingUser) {
+  // Check if user already exists by email
+  const existingUserByEmail = await findUserByEmail(userData.email);
+  if (existingUserByEmail) {
     throw new Error("Email already registered");
   }
+
 
   // Create user
   const user = await createUser(userData);
@@ -41,11 +44,38 @@ export const registerUser = async (userData) => {
   return userWithoutPassword;
 };
 
+export const verifyUserOtp = async (email, otp) => {
+  // Find user by email
+  const user = await findUserByEmail(email);
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.is_verified) {
+    throw new Error("User already verified");
+  }
+
+  // Update user verification status
+  const updatedUser = await prisma.user.update({
+    where: { email },
+    data: { is_verified: true },
+  });
+
+  // Return user without password
+  const { password, ...userWithoutPassword } = updatedUser;
+  return userWithoutPassword;
+};
+
 export const loginUser = async (email, password) => {
   // Find user
   const user = await findUserByEmail(email);
   if (!user) {
     throw new Error("User not found");
+  }
+
+  // Check if user is verified
+  if (!user.is_verified) {
+    throw new Error("Please verify your email first");
   }
 
   // Validate password
@@ -57,7 +87,7 @@ export const loginUser = async (email, password) => {
   // Generate JWT token
   const token = jwt.sign(
     { 
-      userId: user.users_id, // Fixed to use users_id instead of id
+      userId: user.users_id,
       email: user.email, 
       role: user.role 
     },

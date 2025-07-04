@@ -14,16 +14,15 @@ datasource db {
 }
 
 model User {
-  users_id   String   @id @default(cuid())
-  name       String
-  nim        String?  @unique
-  email      String   @unique
-  password   String
-  role       Role     @default(USER)
-  point      String?
-  badge      String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  users_id    String   @id @default(cuid())
+  name        String
+  nim         String?  @unique
+  email       String   @unique
+  password    String
+  role        Role     @default(USER)
+  is_verified Boolean  @default(false)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   categories    Category[]
   registrations Registration[]
@@ -74,7 +73,6 @@ model OTP {
 
   @@index([email])
 }
-
 
 enum Role {
   USER
