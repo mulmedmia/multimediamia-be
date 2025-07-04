@@ -25,28 +25,8 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  blogs         Blog[]
   categories    Category[]
   registrations Registration[]
-  peminatan     peminatan[]
-  kelas         kelas[]
-  // Tambahan: User bisa memiliki banyak kelas melalui enrollment
-  enrollments   UserKelas[]
-}
-
-model Blog {
-  id_blog      String    @id @default(cuid())
-  title        String
-  content      String
-  user_id      String
-  thumbnail    String
-  category     String
-  is_active    Boolean
-  published_at DateTime?
-  created_at   DateTime  @default(now())
-  updated_at   DateTime  @updatedAt
-
-  user User @relation(fields: [user_id], references: [users_id])
 }
 
 model Category {
@@ -95,46 +75,6 @@ model OTP {
   @@index([email])
 }
 
-model peminatan{
-  peminatan_id     String @id @default(cuid())
-  user_id          String
-  nama_peminatan   String
-  imageUrl         String  
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  user          User           @relation(fields: [user_id], references: [users_id])
-  // Tambahan: Peminatan bisa memiliki banyak kelas
-  kelas         kelas[]
-}
-
-model kelas{
-  kelas_id         String @id @default(cuid())
-  user_id          String // creator/instructor
-  peminatan_id     String // TAMBAHAN: relasi ke peminatan
-  nama_kelas       String
-  linkClassroom    String  
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-
-  user             User           @relation(fields: [user_id], references: [users_id])
-  peminatan        peminatan      @relation(fields: [peminatan_id], references: [peminatan_id])
-  // Tambahan: Many-to-many dengan User untuk enrollment
-  enrollments      UserKelas[]
-}
-
-// TAMBAHAN: Junction table untuk User dan Kelas (many-to-many)
-model UserKelas {
-  id          String   @id @default(cuid())
-  user_id     String
-  kelas_id    String
-  enrolled_at DateTime @default(now())
-  
-  user        User     @relation(fields: [user_id], references: [users_id])
-  kelas       kelas    @relation(fields: [kelas_id], references: [kelas_id])
-  
-  @@unique([user_id, kelas_id]) // Prevent duplicate enrollments
-}
 
 enum Role {
   USER
