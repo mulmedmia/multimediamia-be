@@ -9,6 +9,11 @@ const findUserByEmail = async (email) => {
   });
 };
 
+const findUserByNim = async (nim) => {
+  return await prisma.user.findUnique({
+    where: { nim },
+  });
+};
 
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
@@ -35,7 +40,14 @@ export const registerUser = async (userData) => {
     throw new Error("Email already registered");
   }
 
-
+  // Check if user already exists by NIM (if provided)
+  if (userData.nim) {
+    const existingUserByNim = await findUserByNim(userData.nim);
+    if (existingUserByNim) {
+      throw new Error("NIM already registered");
+    }
+  }
+  
   // Create user
   const user = await createUser(userData);
 
