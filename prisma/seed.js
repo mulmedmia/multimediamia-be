@@ -24,12 +24,15 @@ async function main() {
       name: adminName,
       password: hashedPassword,
       role: "ADMIN",
+      is_verified: true,
     },
     create: {
       name: adminName,
       email: adminEmail,
       password: hashedPassword,
       role: "ADMIN",
+      is_verified: true,
+      
     },
   });
 
