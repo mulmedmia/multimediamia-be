@@ -154,3 +154,52 @@ export const getAllUsers = async (filters = {}) => {
     },
   };
 };
+
+export const getRegularUsers = async (filters = {}) => {
+  const { page = 1, limit = 10, search } = filters;
+  const skip = (page - 1) * Number(limit);
+
+  const where = {
+    role: "USER", // Hanya ambil user dengan role USER
+  };
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+      { nim: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const [users, totalUsers] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      select: {
+        users_id: true,
+        name: true,
+        nim: true,
+        email: true,
+        role: true,
+        is_verified: true,
+        created_at: true,
+        updated_at: true,
+      },
+      orderBy: {
+        created_at: "desc",
+      },
+      skip,
+      take: Number(limit),
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  return {
+    users,
+    meta: {
+      total: totalUsers,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(totalUsers / Number(limit)),
+    },
+  };
+};

@@ -1,4 +1,4 @@
-import { getUserProfile, updateUserProfile, getAllUsers } from "../services/user.service.js";
+import { getUserProfile, updateUserProfile, getAllUsers, getRegularUsers } from "../services/user.service.js";
 import { updateProfileSchema } from "../models/user.model.js";
 import { response } from "../utils/response.js";
 import { createOTP } from "../services/otp.service.js";
@@ -92,5 +92,22 @@ export const getUsers = async (req, res) => {
     return response.success(res, result, "Users retrieved successfully");
   } catch (error) {
     return response.error(res, "Failed to retrieve users", 500, error.message);
+  }
+};
+
+// Get regular users only (role: USER)
+export const getRegularUsersOnly = async (req, res) => {
+  try {
+    const filters = {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+    };
+
+    const result = await getRegularUsers(filters);
+    
+    return response.success(res, result, "Regular users retrieved successfully");
+  } catch (error) {
+    return response.error(res, "Failed to retrieve regular users", 500, error.message);
   }
 };
