@@ -97,6 +97,9 @@ export const createNewRegistration = async (req, res) => {
     if (error.message === "Team name is required for group registrations") {
       return response.error(res, error.message, 400);
     }
+    if (error.message === "User already registered for this category") {
+      return response.error(res, error.message, 400);
+    }
     return response.error(res, "Failed to submit registration", 500, error.message);
   }
 };

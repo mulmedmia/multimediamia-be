@@ -97,6 +97,18 @@ export const createRegistration = async (registrationData) => {
     throw new Error("Category not found");
   }
 
+  // Check if user already registered for this category
+  const existingRegistration = await prisma.registration.findFirst({
+    where: {
+      user_id: registrationData.user_id,
+      category_id: registrationData.category_id,
+    },
+  });
+
+  if (existingRegistration) {
+    throw new Error("User already registered for this category");
+  }
+
   // Validate based on team_type
   if (category.team_type === "GROUP" && !registrationData.team_name) {
     throw new Error("Team name is required for group registrations");
