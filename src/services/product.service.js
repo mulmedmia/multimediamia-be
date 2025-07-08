@@ -2,7 +2,14 @@ import prisma from "../config/prisma.js";
 
 // Get all products with filtering
 export const getAllProducts = async (filters = {}) => {
-  const { page = 1, limit = 10, search, min_price, max_price } = filters;
+  const {
+    page = 1,
+    limit = 10,
+    search,
+    min_price,
+    max_price,
+    is_active,
+  } = filters;
   const skip = (page - 1) * Number(limit);
 
   const where = {};
@@ -20,12 +27,15 @@ export const getAllProducts = async (filters = {}) => {
     if (max_price) where.price.lte = Number(max_price);
   }
 
+  // Filter by active status
+  if (is_active !== undefined) {
+    where.is_active = is_active === "true";
+  }
+
   const [products, totalProducts] = await Promise.all([
     prisma.product.findMany({
       where,
-      orderBy: {
-        created_at: "desc",
-      },
+      orderBy: { created_at: "desc" },
       skip,
       take: Number(limit),
     }),
@@ -56,7 +66,7 @@ export const getProductById = async (id) => {
   return product;
 };
 
-// Create new product (admin only)
+// Create new product
 export const createProduct = async (productData) => {
   const product = await prisma.product.create({
     data: productData,
@@ -65,7 +75,7 @@ export const createProduct = async (productData) => {
   return product;
 };
 
-// Update existing product (admin only)
+// Update existing product
 export const updateProduct = async (id, productData) => {
   // Check if product exists
   const product = await prisma.product.findUnique({
@@ -84,7 +94,7 @@ export const updateProduct = async (id, productData) => {
   return updatedProduct;
 };
 
-// Delete product (admin only)
+// Delete product
 export const deleteProduct = async (id) => {
   // Check if product exists
   const product = await prisma.product.findUnique({
