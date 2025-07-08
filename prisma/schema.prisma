@@ -113,7 +113,6 @@ model product {
 enum Role {
   USER
   ADMIN
-  MENTOR
 }
 
 enum VerificationStatus {
