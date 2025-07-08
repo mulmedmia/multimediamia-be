@@ -18,7 +18,7 @@ const findUserByNim = async (nim) => {
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
-  
+
   return await prisma.user.create({
     data: {
       ...userData,
@@ -47,7 +47,7 @@ export const registerUser = async (userData) => {
       throw new Error("NIM already registered");
     }
   }
-  
+
   // Create user
   const user = await createUser(userData);
 
@@ -98,10 +98,10 @@ export const loginUser = async (email, password) => {
 
   // Generate JWT token
   const token = jwt.sign(
-    { 
+    {
       userId: user.users_id,
-      email: user.email, 
-      role: user.role 
+      email: user.email,
+      role: user.role,
     },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRATION || "1d" }
