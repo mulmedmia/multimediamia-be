@@ -96,6 +96,11 @@ export const createNewProduct = async (req, res) => {
         productData.is_active === "true" || productData.is_active === true;
     }
 
+    // Convert stock to number
+    if (productData.stock !== undefined) {
+      productData.stock = Number(productData.stock);
+    }
+
     // Validate input data
     const validation = createProductSchema.safeParse(productData);
     if (!validation.success) {
@@ -151,6 +156,11 @@ export const updateExistingProduct = async (req, res) => {
     if (productData.is_active !== undefined) {
       productData.is_active =
         productData.is_active === "true" || productData.is_active === true;
+    }
+
+    // Convert stock to number if provided
+    if (productData.stock !== undefined) {
+      productData.stock = Number(productData.stock);
     }
 
     // Validate input data

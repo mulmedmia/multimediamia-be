@@ -6,6 +6,11 @@ export const createProductSchema = z.object({
   description: z.string().min(10, "Description must be at least 10 characters"),
   price: z.number().positive("Price must be a positive number"),
   is_active: z.boolean().default(true),
+  stock: z
+    .number()
+    .int()
+    .min(0, "Stock must be a non-negative integer")
+    .default(0),
 });
 
 // Schema for updating a product
@@ -17,4 +22,9 @@ export const updateProductSchema = z.object({
     .optional(),
   price: z.number().positive("Price must be a positive number").optional(),
   is_active: z.boolean().optional(),
+  stock: z
+    .number()
+    .int()
+    .min(0, "Stock must be a non-negative integer")
+    .optional(),
 });
