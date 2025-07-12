@@ -8,19 +8,20 @@ datasource db {
 }
 
 model User {
-  users_id    String   @id @default(cuid())
-  name        String
-  nim         String?  @unique
-  email       String   @unique
-  password    String
-  role        Role     @default(USER)
-  is_verified Boolean  @default(false)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-  points      Int      @default(0)
+  users_id      String         @id @default(cuid())
+  name          String
+  nim           String?        @unique
+  email         String         @unique
+  password      String
+  role          Role           @default(USER)
+  is_verified   Boolean        @default(false)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+  points        Int            @default(0)
   categories    Category[]
   registrations Registration[]
   submissions   Submission[]
+  Redemption    Redemption[]
 }
 
 model Category {
@@ -68,7 +69,7 @@ model Submission {
   project_name     String
   description      String
   flow_application String
-  score            Float? 
+  score            Float?
   feedback         String?
   status           SubmissionStatus @default(PENDING)
   is_verified      Boolean          @default(false)
@@ -103,15 +104,27 @@ model OTP {
 }
 
 model product {
-  product_id  String   @id @default(cuid())
+  product_id  String       @id @default(cuid())
   name        String
   description String
   price       Float
   image_url   String
-  stock       Int      @default(0)
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  stock       Int          @default(0)
+  is_active   Boolean      @default(true)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  Redemption  Redemption[]
+}
+
+model Redemption {
+  redemption_id String   @id @default(cuid())
+  user_id       String
+  product_id    String
+  points_used   Int
+  created_at    DateTime @default(now())
+
+  user    User    @relation(fields: [user_id], references: [users_id])
+  product product @relation(fields: [product_id], references: [product_id])
 }
 
 enum Role {

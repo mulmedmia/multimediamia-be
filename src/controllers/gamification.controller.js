@@ -1,4 +1,8 @@
-import { updateUserPoints } from "../services/gamification.service.js";
+import {
+  updateUserPoints,
+  redeemProduct,
+  getAllRedeemUser,
+} from "../services/gamification.service.js";
 import { response } from "../utils/response.js";
 import prisma from "../config/prisma.js";
 
@@ -24,7 +28,12 @@ export const updateUserPointsController = async (req, res) => {
     if (error.message === "User not found") {
       return response.error(res, error.message, 404);
     }
-    return response.error(res, "Failed to update user points", 500, error.message);
+    return response.error(
+      res,
+      "Failed to update user points",
+      500,
+      error.message
+    );
   }
 };
 
@@ -51,8 +60,70 @@ export const getLeaderboardByCategory = async (req, res) => {
       },
     });
 
-    return response.success(res, submissions, "Leaderboard retrieved successfully");
+    return response.success(
+      res,
+      submissions,
+      "Leaderboard retrieved successfully"
+    );
   } catch (error) {
     return response.error(res, "Failed to get leaderboard", 500, error.message);
+  }
+};
+
+// Redeem product (user)
+export const redeemProductController = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { productId } = req.body;
+
+    if (!productId) {
+      return response.validation(res, { productId: "Product ID is required" });
+    }
+
+    const result = await redeemProduct(userId, productId);
+
+    return response.success(res, result, "Product redeemed successfully");
+  } catch (error) {
+    if (
+      error.message === "User not found" ||
+      error.message === "Product not found"
+    ) {
+      return response.error(res, error.message, 404);
+    }
+    if (
+      error.message === "Insufficient points" ||
+      error.message === "Product is out of stock" ||
+      error.message === "Product is not active"
+    ) {
+      return response.error(res, error.message, 400);
+    }
+    return response.error(res, "Failed to redeem product", 500, error.message);
+  }
+};
+
+// Get all redemption history (admin only)
+export const getAllRedeemUserController = async (req, res) => {
+  try {
+    const filters = {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      user_id: req.query.user_id,
+      product_id: req.query.product_id,
+    };
+
+    const result = await getAllRedeemUser(filters);
+    return response.success(
+      res,
+      result,
+      "All user redemption history retrieved successfully"
+    );
+  } catch (error) {
+    return response.error(
+      res,
+      "Failed to get redemption history",
+      500,
+      error.message
+    );
   }
 };
