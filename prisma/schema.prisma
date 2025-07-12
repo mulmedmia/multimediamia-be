@@ -17,7 +17,7 @@ model User {
   is_verified Boolean  @default(false)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
-
+  points      Int      @default(0)
   categories    Category[]
   registrations Registration[]
   submissions   Submission[]

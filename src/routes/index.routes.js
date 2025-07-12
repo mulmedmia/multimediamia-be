@@ -5,6 +5,7 @@ import registrationRoutes from "./registration.routes.js";
 import userRoutes from "./user.routes.js";
 import submissionRoutes from "./submission.routes.js";
 import productRoutes from "./product.routes.js";
+import gamificationRoutes from "./gamification.routes.js";
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/registrations", registrationRoutes);
 router.use("/users", userRoutes);
 router.use("/submissions", submissionRoutes);
 router.use("/products", productRoutes);
+router.use("/gamification", gamificationRoutes);
 
 export default router;
