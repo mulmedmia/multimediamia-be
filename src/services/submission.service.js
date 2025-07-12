@@ -265,3 +265,24 @@ export const updateSubmissionStatus = async (id, statusData) => {
 
   return updatedSubmission;
 };
+
+// Update submission score and feedback (admin or juri only)
+export const updateSubmissionScoreFeedback = async (id, data) => {
+  const submission = await prisma.submission.findUnique({
+    where: { submission_id: id },
+  });
+  if (!submission) throw new Error("Submission not found");
+
+  return await prisma.submission.update({
+    where: { submission_id: id },
+    data: {
+      score: data.score,
+      feedback: data.feedback,
+    },
+    include: {
+      user: { select: { name: true, email: true } },
+      category: { select: { category_name: true, name: true } },
+      links: true,
+    },
+  });
+};

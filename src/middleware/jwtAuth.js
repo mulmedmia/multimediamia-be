@@ -28,9 +28,9 @@ export const isAdmin = (req, res, next) => {
 };
 
 // Check if user is admin or mentor
-export const isAdminOrMentor = (req, res, next) => {
-  if (!req.user || (req.user.role !== "ADMIN" && req.user.role !== "MENTOR")) {
-    return response.error(res, "Forbidden: Admin or Mentor access required", 403);
+export const isJuri = (req, res, next) => {
+  if (!req.user || (req.user.role !== "ADMIN" && req.user.role !== "JURI")) {
+    return response.error(res, "Forbidden: Admin or JURI access required", 403);
   }
   next();
 };

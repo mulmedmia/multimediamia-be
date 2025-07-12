@@ -1,5 +1,7 @@
 import { registerUser, loginUser, verifyUserOtp } from "../services/auth.service.js";
 import { createOTP, verifyOTP } from "../services/otp.service.js";
+import prisma from "../config/prisma.js";
+import bcrypt from "bcrypt";
 import { response } from "../utils/response.js";
 
 // Register user and send OTP
@@ -108,5 +110,57 @@ export const login = async (req, res) => {
       return response.error(res, error.message, 401);
     }
     return response.error(res, "Failed to login", 500, error.message);
+  }
+};
+
+// JURI: 
+export const createJuri = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return response.error(res, "Name, email, and password are required", 400);
+    }
+
+    // Cek email sudah terdaftar
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return response.error(res, "Email already registered", 400);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const juri = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: "JURI",
+        is_verified: true,
+      },
+    });
+
+    return response.success(res, {
+      users_id: juri.users_id,
+      name: juri.name,
+      email: juri.email,
+      role: juri.role,
+    }, "JURI created successfully", 201);
+  } catch (error) {
+    return response.error(res, "Failed to create JURI", 500, error.message);
+  }
+};
+
+// Hapus JURI (hanya admin)
+export const deleteJuri = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Pastikan user dengan id tsb adalah JURI
+    const user = await prisma.user.findUnique({ where: { users_id: id } });
+    if (!user || user.role !== "JURI") {
+      return response.error(res, "JURI not found", 404);
+    }
+    await prisma.user.delete({ where: { users_id: id } });
+    return response.success(res, null, "JURI deleted successfully");
+  } catch (error) {
+    return response.error(res, "Failed to delete JURI", 500, error.message);
   }
 };

@@ -7,11 +7,12 @@ import {
   updateExistingSubmission,
   deleteSubmissionById,
   updateSubmissionStatusById,
+  updateSubmissionScoreFeedbackById,
 } from "../controllers/submission.controller.js";
 import {
   authenticateToken,
   isAdmin,
-  isAdminOrMentor,
+  isJuri,
 } from "../middleware/jwtAuth.js";
 
 const router = Router();
@@ -26,7 +27,7 @@ router.patch("/:id", authenticateToken, updateExistingSubmission);
 router.delete("/:id", authenticateToken, deleteSubmissionById);
 
 // Admin/Mentor routes
-router.get("/", authenticateToken, isAdminOrMentor, getSubmissions);
+router.get("/", authenticateToken, getSubmissions);
 
 // Admin only routes
 router.patch(
@@ -34,6 +35,13 @@ router.patch(
   authenticateToken,
   isAdmin,
   updateSubmissionStatusById
+);
+
+router.patch(
+  "/:id/score-feedback",
+  authenticateToken,
+  isAdmin,
+  updateSubmissionScoreFeedbackById
 );
 
 export default router;

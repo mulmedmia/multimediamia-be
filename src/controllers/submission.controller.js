@@ -13,6 +13,7 @@ import {
   updateSubmissionSchema,
   updateSubmissionStatusSchema,
 } from "../models/submission.model.js";
+import { updateSubmissionScoreFeedback } from "../services/submission.service.js";
 
 // Get all submissions (admin/mentor)
 export const getSubmissions = async (req, res) => {
@@ -214,5 +215,20 @@ export const updateSubmissionStatusById = async (req, res) => {
       500,
       error.message
     );
+  }
+};
+
+// Update submission score and feedback (admin only)
+export const updateSubmissionScoreFeedbackById = async (req, res) => {
+  try {
+    const submissionId = req.params.id;
+    const { score, feedback } = req.body;
+    const updated = await updateSubmissionScoreFeedback(submissionId, { score, feedback });
+    return response.success(res, updated, "Score & feedback updated successfully");
+  } catch (error) {
+    if (error.message === "Submission not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to update score/feedback", 500, error.message);
   }
 };

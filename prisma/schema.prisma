@@ -68,6 +68,8 @@ model Submission {
   project_name     String
   description      String
   flow_application String
+  score            Float? 
+  feedback         String?
   status           SubmissionStatus @default(PENDING)
   is_verified      Boolean          @default(false)
   created_at       DateTime         @default(now())
@@ -114,6 +116,7 @@ model product {
 enum Role {
   USER
   ADMIN
+  JURI
 }
 
 enum VerificationStatus {
