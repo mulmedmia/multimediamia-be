@@ -1,6 +1,6 @@
 # 📦 multimedia-backend
 
-**Backend API untuk Aplikasi KSM Multimedia**
+**Backend APIs untuk Aplikasi KSM Multimedia**
 Repositori ini berisi backend API untuk mengelola fitur blog, autentikasi pengguna dengan verifikasi OTP, dan unggahan gambar.
 
 ## 🔧 Persyaratan
