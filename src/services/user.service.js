@@ -131,6 +131,7 @@ export const getAllUsers = async (filters = {}) => {
         nim: true,
         email: true,
         role: true,
+        points: true,
         is_verified: true,
         created_at: true,
         updated_at: true,
