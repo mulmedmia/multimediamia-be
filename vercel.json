@@ -24,9 +24,6 @@
   "build": {
     "env": {
       "PRISMA_CLIENT_ENGINE_TYPE": "binary"
-    },
-    "hooks": {
-      "build": "npx prisma generate"
     }
   }
 }
