@@ -158,7 +158,8 @@ export const deleteRegistrationById = async (req, res) => {
 export const verifyRegistrationByAdmin = async (req, res) => {
   try {
     const registrationId = req.params.id;
-    const updatedRegistration = await updateRegistration(registrationId, { is_verified: true });
+    const { is_verified } = req.body;
+    const updatedRegistration = await updateRegistration(registrationId, { is_verified });
     return response.success(res, updatedRegistration, "Registration verified successfully");
   } catch (error) {
     if (error.message === "Registration not found") {
