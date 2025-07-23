@@ -6,6 +6,7 @@ import {
   updateExistingRegistration,
   deleteRegistrationById,
   verifyRegistrationByAdmin,
+  giveRegistrationFeedback,
 } from "../controllers/registration.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
@@ -23,4 +24,11 @@ router.delete("/:id", authenticateToken, deleteRegistrationById);
 // Admin only: verify registration
 router.patch("/:id/verify", authenticateToken, isAdmin, verifyRegistrationByAdmin);
 
+// PATCH feedback (admin only)
+router.patch(
+  "/:id/feedback",
+  authenticateToken,
+  isAdmin,
+  giveRegistrationFeedback
+);
 export default router;

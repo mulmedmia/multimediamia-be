@@ -54,6 +54,7 @@ model Registration {
   team_name       String?
   team_members    String?
   is_verified     Boolean
+  feedback         String?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 

@@ -168,3 +168,25 @@ export const verifyRegistrationByAdmin = async (req, res) => {
     return response.error(res, "Failed to verify registration", 500, error.message);
   }
 };
+
+// PATCH: Admin memberikan feedback ke registration
+export const giveRegistrationFeedback = async (req, res) => {
+  try {
+    const registrationId = req.params.id;
+    const { feedback } = req.body;
+
+    if (!feedback || typeof feedback !== "string" || feedback.length < 3) {
+      return response.validation(res, { feedback: "Feedback is required and must be at least 3 characters" });
+    }
+
+    // Update registration dengan feedback
+    const updatedRegistration = await updateRegistration(registrationId, { feedback });
+
+    return response.success(res, updatedRegistration, "Feedback diberikan ke peserta");
+  } catch (error) {
+    if (error.message === "Registration not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to give feedback", 500, error.message);
+  }
+};
