@@ -19,6 +19,7 @@ const router = Router();
 
 // Public routes
 router.get("/:id", getSubmission);
+router.get("/", getSubmissions);
 
 // User routes (authenticated)
 router.get("/my/submissions", authenticateToken, getMySubmissions);
@@ -26,8 +27,6 @@ router.post("/", authenticateToken, createNewSubmission);
 router.patch("/:id", authenticateToken, updateExistingSubmission);
 router.delete("/:id", authenticateToken, deleteSubmissionById);
 
-// Admin/Mentor routes
-router.get("/", authenticateToken, getSubmissions);
 
 // Admin only routes
 router.patch(
