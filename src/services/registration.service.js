@@ -160,7 +160,7 @@ export const updateRegistration = async (id, registrationData) => {
     throw new Error("Team name is required for group registrations");
   }
 
-  const updatedRegistration = await prisma.registration.update({
+   const updatedRegistration = await prisma.registration.update({
     where: { registration_id: id },
     data: registrationData,
     include: {
@@ -179,7 +179,6 @@ export const updateRegistration = async (id, registrationData) => {
       },
     },
   });
-
   return updatedRegistration;
 };
 
