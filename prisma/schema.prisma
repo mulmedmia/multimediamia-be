@@ -36,6 +36,7 @@ model Category {
   description   String
   deadline      DateTime
   image         String
+  file_url      String?
   team_type     TeamType           @default(INDIVIDUAL)
   status        VerificationStatus
   created_at    DateTime           @default(now())

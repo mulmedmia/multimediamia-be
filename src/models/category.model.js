@@ -6,6 +6,7 @@ export const createCategorySchema = z.object({
     .string()
     .min(3, "Category name must be at least 3 characters"),
   name: z.string().min(3, "Name must be at least 3 characters"),
+  file_url: z.string().url("file_url must be a valid URL").optional(),
   startDate: z.string().datetime({ message: "Invalid start date format" }),
   endDate: z.string().datetime({ message: "Invalid end date format" }),
   organizer: z.string().min(3, "Organizer must be at least 3 characters"),
@@ -23,6 +24,7 @@ export const updateCategorySchema = z.object({
     .min(3, "Category name must be at least 3 characters")
     .optional(),
   name: z.string().min(3, "Name must be at least 3 characters").optional(),
+  file_url: z.string().url("file_url must be a valid URL").optional(),
   startDate: z
     .string()
     .datetime({ message: "Invalid start date format" })
