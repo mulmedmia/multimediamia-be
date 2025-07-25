@@ -7,7 +7,6 @@ import {
   deleteRegistrationById,
   verifyRegistrationByAdmin,
   giveRegistrationFeedback,
-  getMyRegistrations,
 } from "../controllers/registration.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
@@ -18,7 +17,6 @@ router.get("/", getRegistrations);
 router.get("/:id", getRegistration);
 
 // User routes (must be authenticated)
-router.get("/my-registrations", authenticateToken, getMyRegistrations);
 router.post("/", authenticateToken, createNewRegistration);
 router.patch("/:id", authenticateToken, updateExistingRegistration);
 router.delete("/:id", authenticateToken, deleteRegistrationById);

@@ -191,19 +191,3 @@ export const giveRegistrationFeedback = async (req, res) => {
   }
 };
 
-// Get user's own registrations
-export const getMyRegistrations = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const filters = {
-      page: req.query.page,
-      limit: req.query.limit,
-      category_id: req.query.category_id,
-    };
-
-    const result = await getUserRegistrations(userId, filters);
-    return response.success(res, result, "Your registrations retrieved successfully");
-  } catch (error) {
-    return response.error(res, "Failed to retrieve your registrations", 500, error.message);
-  }
-};
