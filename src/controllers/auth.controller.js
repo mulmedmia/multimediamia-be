@@ -164,3 +164,48 @@ export const deleteJuri = async (req, res) => {
     return response.error(res, "Failed to delete JURI", 500, error.message);
   }
 };
+
+// Get all JURI
+export const getAllJuri = async (req, res) => {
+  try {
+    const juries = await prisma.user.findMany({
+      where: { role: "JURI" },
+      select: {
+        users_id: true,
+        name: true,
+        email: true,
+        is_verified: true,
+        created_at: true,
+        updated_at: true,
+      },
+      orderBy: { created_at: "desc" },
+    });
+    return response.success(res, juries, "All JURI retrieved successfully");
+  } catch (error) {
+    return response.error(res, "Failed to get JURI", 500, error.message);
+  }
+};
+
+// Get JURI by ID
+export const getJuriById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const juri = await prisma.user.findUnique({
+      where: { users_id: id },
+      select: {
+        users_id: true,
+        name: true,
+        email: true,
+        is_verified: true,
+        created_at: true,
+        updated_at: true,
+      },
+    });
+    if (!juri) {
+      return response.error(res, "JURI not found", 404);
+    }
+    return response.success(res, juri, "JURI retrieved successfully");
+  } catch (error) {
+    return response.error(res, "Failed to get JURI", 500, error.message);
+  }
+};
