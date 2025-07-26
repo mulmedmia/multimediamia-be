@@ -193,6 +193,15 @@ export const deleteRegistration = async (id) => {
     throw new Error("Registration not found");
   }
 
+  // Hapus submission terkait (jika ada)
+  await prisma.submission.deleteMany({
+    where: {
+      user_id: registration.user_id,
+      category_id: registration.category_id,
+    },
+  });
+
+  // Hapus registration
   await prisma.registration.delete({
     where: { registration_id: id },
   });
