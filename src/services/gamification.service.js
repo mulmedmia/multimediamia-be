@@ -124,3 +124,40 @@ export const getAllRedeemUser = async (filters = {}) => {
     },
   };
 };
+
+export const getMyRedeem = async (userId, filters = {}) => {
+  const { page = 1, limit = 10, search, product_id } = filters;
+  const skip = (page - 1) * Number(limit);
+
+  const where = { user_id: userId };
+  if (product_id) where.product_id = product_id;
+
+  if (search) {
+    where.OR = [
+      { product: { name: { contains: search, mode: "insensitive" } } },
+    ];
+  }
+
+  const [redemptions, total] = await Promise.all([
+    prisma.redemption.findMany({
+      where,
+      include: {
+        product: { select: { product_id: true, name: true, price: true } },
+      },
+      orderBy: { created_at: "desc" },
+      skip,
+      take: Number(limit),
+    }),
+    prisma.redemption.count({ where }),
+  ]);
+
+  return {
+    redemptions,
+    meta: {
+      total,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(total / Number(limit)),
+    },
+  };
+};

@@ -4,6 +4,7 @@ import {
   getLeaderboardByCategory,
   redeemProductController,
   getAllRedeemUserController,
+  getMyRedeemController, 
 } from "../controllers/gamification.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
@@ -28,5 +29,8 @@ router.get(
 
 // User redemption route
 router.post("/redeem", authenticateToken, redeemProductController);
+
+// User: get own redemption history
+router.get("/redeem/my", authenticateToken, getMyRedeemController);
 
 export default router;

@@ -2,6 +2,7 @@ import {
   updateUserPoints,
   redeemProduct,
   getAllRedeemUser,
+  getMyRedeem,
 } from "../services/gamification.service.js";
 import { response } from "../utils/response.js";
 import prisma from "../config/prisma.js";
@@ -122,6 +123,32 @@ export const getAllRedeemUserController = async (req, res) => {
     return response.error(
       res,
       "Failed to get redemption history",
+      500,
+      error.message
+    );
+  }
+};
+// Get my redemption history
+export const getMyRedeemController = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const filters = {
+      page: req.query.page,
+      limit: req.query.limit,
+      search: req.query.search,
+      product_id: req.query.product_id,
+    };
+
+    const result = await getMyRedeem(userId, filters);
+    return response.success(
+      res,
+      result,
+      "Your redemption history retrieved successfully"
+    );
+  } catch (error) {
+    return response.error(
+      res,
+      "Failed to get your redemption history",
       500,
       error.message
     );
