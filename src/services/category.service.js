@@ -120,6 +120,12 @@ export const updateCategory = async (id, categoryData) => {
 };
 
 // Delete category (admin only)
+/**
+ * Deletes a category and all associated registrations and submissions.
+ * @param {string} id - The category ID to delete.
+ * @returns {Promise<boolean>} - Returns true if deletion is successful.
+ * @throws {Error} - Throws error if category not found.
+ */
 export const deleteCategory = async (id) => {
   // Check if category exists
   const category = await prisma.category.findUnique({
@@ -130,15 +136,16 @@ export const deleteCategory = async (id) => {
     throw new Error("Category not found");
   }
 
-  // Check if category has related registrations
-  const registrations = await prisma.registration.findMany({
+  // Delete associated registrations and submissions first
+  await prisma.registration.deleteMany({
     where: { category_id: id },
   });
 
-  if (registrations.length > 0) {
-    throw new Error("Cannot delete category with existing registrations");
-  }
+  await prisma.submission.deleteMany({
+    where: { category_id: id },
+  });
 
+  // Now delete the category
   await prisma.category.delete({
     where: { category_id: id },
   });
