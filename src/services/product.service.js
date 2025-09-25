@@ -105,8 +105,17 @@ export const deleteProduct = async (id) => {
     throw new Error("Product not found");
   }
 
-  await prisma.product.delete({
-    where: { product_id: id },
+  // Use transaction to delete related redemptions first, then the product
+  await prisma.$transaction(async (tx) => {
+    // Delete all redemptions associated with this product
+    await tx.redemption.deleteMany({
+      where: { product_id: id },
+    });
+
+    // Now delete the product
+    await tx.product.delete({
+      where: { product_id: id },
+    });
   });
 
   return true;
