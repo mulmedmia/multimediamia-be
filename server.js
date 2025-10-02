@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import router from "./src/routes/index.routes.js";
 import {
   errorHandler,
@@ -12,7 +13,6 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors());
 app.use(
   cors({
     origin: "*",
@@ -20,6 +20,14 @@ app.use(
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+const limiter = rateLimit({
+  windowMs: 2 * 60 * 1000,
+  max: 40,
+  message: "Too many requests from this IP, please try again later.",
+});
+
+app.use(limiter);
 
 app.use(morgan("dev"));
 app.use(express.json());
@@ -43,20 +51,10 @@ app.get("/", (req, res) => {
   });
 });
 
-// routes
 app.use("/api/v1", router);
 
-// Handle errors
 app.use(errorHandler);
 app.use(notFoundHandler);
-
-// Optional: Error handler middleware (tidak wajib, tapi best practice)
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res
-    .status(500)
-    .json({ message: "Internal Server Error", error: err.message });
-});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
