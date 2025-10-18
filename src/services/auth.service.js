@@ -111,3 +111,25 @@ export const loginUser = async (email, password) => {
   const { password: _, ...userWithoutPassword } = user;
   return { user: userWithoutPassword, token };
 };
+
+export const resetPasswordWithOtp = async (email, otp, newPassword) => {
+  // Find user by email
+  const user = await findUserByEmail(email);
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  // Hash new password
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  // Update user password
+  const updatedUser = await prisma.user.update({
+    where: { email },
+    data: { password: hashedPassword },
+  });
+
+  // Return user without password
+  const { password, ...userWithoutPassword } = updatedUser;
+  return userWithoutPassword;
+};
