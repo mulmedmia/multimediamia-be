@@ -1,4 +1,4 @@
-import { registerUser, loginUser, verifyUserOtp } from "../services/auth.service.js";
+import { registerUser, loginUser, verifyUserOtp, resetPasswordWithOtp } from "../services/auth.service.js";
 import { createOTP, verifyOTP } from "../services/otp.service.js";
 import prisma from "../config/prisma.js";
 import bcrypt from "bcrypt";
@@ -207,5 +207,85 @@ export const getJuriById = async (req, res) => {
     return response.success(res, juri, "JURI retrieved successfully");
   } catch (error) {
     return response.error(res, "Failed to get JURI", 500, error.message);
+  }
+};
+
+// PASSWORD RESET
+// Request password reset OTP
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return response.error(res, "User not found", 404);
+    }
+
+    // Generate and send OTP
+    await createOTP(email);
+    
+    return response.success(
+      res,
+      { email },
+      "Password reset OTP sent to your email",
+      200
+    );
+  } catch (error) {
+    return response.error(res, "Failed to send password reset OTP", 500, error.message);
+  }
+};
+
+// Verify reset password OTP (optional step for frontend confirmation)
+export const verifyResetOtp = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    // Verify OTP
+    const isOtpValid = await verifyOTP(email, otp);
+    
+    if (!isOtpValid) {
+      return response.error(res, "Invalid or expired OTP", 400);
+    }
+    
+    return response.success(
+      res,
+      { email, otp_verified: true },
+      "OTP verified successfully. You can now reset your password"
+    );
+  } catch (error) {
+    return response.error(res, "Failed to verify OTP", 500, error.message);
+  }
+};
+
+// Reset password with OTP
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    
+    // Verify OTP
+    const isOtpValid = await verifyOTP(email, otp);
+    
+    if (!isOtpValid) {
+      return response.error(res, "Invalid or expired OTP", 400);
+    }
+    
+    // Reset password
+    const updatedUser = await resetPasswordWithOtp(email, otp, newPassword);
+    
+    return response.success(
+      res,
+      {
+        users_id: updatedUser.users_id,
+        name: updatedUser.name,
+        email: updatedUser.email
+      },
+      "Password reset successfully"
+    );
+  } catch (error) {
+    if (error.message === "User not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to reset password", 500, error.message);
   }
 };
