@@ -55,7 +55,7 @@ model Registration {
   team_name       String?
   team_members    String?
   is_verified     Boolean
-  feedback         String?
+  feedback        String?
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
@@ -156,4 +156,14 @@ enum LinkType {
   GITHUB
   YOUTUBE
   OTHER
+}
+
+model IPAddress {
+  id         String   @id @default(cuid())
+  ip         String
+  email      String
+  created_at DateTime @default(now())
+
+  @@index([ip])
+  @@index([created_at])
 }
