@@ -95,4 +95,4 @@ yarn start
 
 ## 🧑‍💻 Kontribusi
 
-Team Pengembang
+Team Pengembang.
