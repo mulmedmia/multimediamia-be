@@ -12,9 +12,8 @@ import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
 const router = Router();
 
-// Public routes
-router.get("/", getRegistrations);
-router.get("/:id", getRegistration);
+router.get("/", getRegistrations, isAdmin);
+router.get("/:id", getRegistration, isAdmin);
 
 // User routes (must be authenticated)
 router.post("/", authenticateToken, createNewRegistration);

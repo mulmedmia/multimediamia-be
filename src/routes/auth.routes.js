@@ -22,3 +22,5 @@ router.get("/juri", authenticateToken, isAdmin, getAllJuri); // Get all juri
 router.get("/juri/:id", authenticateToken, isAdmin, getJuriById); // Get juri by id
 
 export default router;  
+
+

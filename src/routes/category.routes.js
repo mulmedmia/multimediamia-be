@@ -38,3 +38,5 @@ router.patch(
 router.delete("/:id", authenticateToken, isAdmin, deleteCategoryById);
 
 export default router;
+
+

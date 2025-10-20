@@ -28,3 +28,6 @@ export const updateProductSchema = z.object({
     .min(0, "Stock must be a non-negative integer")
     .optional(),
 });
+
+
+
