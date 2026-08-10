@@ -1,13 +1,16 @@
 import { registerUser, loginUser, verifyUserOtp, resetPasswordWithOtp } from "../services/auth.service.js";
 import { createOTP, verifyOTP } from "../services/otp.service.js";
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq, desc } from "drizzle-orm";
+import { generateCuid } from "../db/cuid.js";
 import bcrypt from "bcrypt";
 import { response } from "../utils/response.js";
 
 // Register user and send OTP
 export const register = async (req, res) => {
   try {
-    const {name, email, password } = req.body;
+    const { name, email, password } = req.body;
     
     // Register user (will be unverified)
     const user = await registerUser({ name, email, password });
@@ -113,7 +116,7 @@ export const login = async (req, res) => {
   }
 };
 
-// JURI: 
+// JURI: Create JURI
 export const createJuri = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -122,28 +125,40 @@ export const createJuri = async (req, res) => {
     }
 
     // Cek email sudah terdaftar
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const [existing] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.email, email))
+      .limit(1);
+
     if (existing) {
       return response.error(res, "Email already registered", 400);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const juri = await prisma.user.create({
-      data: {
+    const [juri] = await db
+      .insert(schema.User)
+      .values({
+        users_id: generateCuid(),
         name,
         email,
         password: hashedPassword,
         role: "JURI",
         is_verified: true,
-      },
-    });
+      })
+      .returning();
 
-    return response.success(res, {
-      users_id: juri.users_id,
-      name: juri.name,
-      email: juri.email,
-      role: juri.role,
-    }, "JURI created successfully", 201);
+    return response.success(
+      res,
+      {
+        users_id: juri.users_id,
+        name: juri.name,
+        email: juri.email,
+        role: juri.role,
+      },
+      "JURI created successfully",
+      201
+    );
   } catch (error) {
     return response.error(res, "Failed to create JURI", 500, error.message);
   }
@@ -154,11 +169,17 @@ export const deleteJuri = async (req, res) => {
   try {
     const { id } = req.params;
     // Pastikan user dengan id tsb adalah JURI
-    const user = await prisma.user.findUnique({ where: { users_id: id } });
+    const [user] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.users_id, id))
+      .limit(1);
+
     if (!user || user.role !== "JURI") {
       return response.error(res, "JURI not found", 404);
     }
-    await prisma.user.delete({ where: { users_id: id } });
+    
+    await db.delete(schema.User).where(eq(schema.User.users_id, id));
     return response.success(res, null, "JURI deleted successfully");
   } catch (error) {
     return response.error(res, "Failed to delete JURI", 500, error.message);
@@ -168,18 +189,19 @@ export const deleteJuri = async (req, res) => {
 // Get all JURI
 export const getAllJuri = async (req, res) => {
   try {
-    const juries = await prisma.user.findMany({
-      where: { role: "JURI" },
-      select: {
-        users_id: true,
-        name: true,
-        email: true,
-        is_verified: true,
-        created_at: true,
-        updated_at: true,
-      },
-      orderBy: { created_at: "desc" },
-    });
+    const juries = await db
+      .select({
+        users_id: schema.User.users_id,
+        name: schema.User.name,
+        email: schema.User.email,
+        is_verified: schema.User.is_verified,
+        created_at: schema.User.created_at,
+        updated_at: schema.User.updated_at,
+      })
+      .from(schema.User)
+      .where(eq(schema.User.role, "JURI"))
+      .orderBy(desc(schema.User.created_at));
+
     return response.success(res, juries, "All JURI retrieved successfully");
   } catch (error) {
     return response.error(res, "Failed to get JURI", 500, error.message);
@@ -190,17 +212,19 @@ export const getAllJuri = async (req, res) => {
 export const getJuriById = async (req, res) => {
   try {
     const { id } = req.params;
-    const juri = await prisma.user.findUnique({
-      where: { users_id: id },
-      select: {
-        users_id: true,
-        name: true,
-        email: true,
-        is_verified: true,
-        created_at: true,
-        updated_at: true,
-      },
-    });
+    const [juri] = await db
+      .select({
+        users_id: schema.User.users_id,
+        name: schema.User.name,
+        email: schema.User.email,
+        is_verified: schema.User.is_verified,
+        created_at: schema.User.created_at,
+        updated_at: schema.User.updated_at,
+      })
+      .from(schema.User)
+      .where(eq(schema.User.users_id, id))
+      .limit(1);
+
     if (!juri) {
       return response.error(res, "JURI not found", 404);
     }
@@ -217,7 +241,12 @@ export const forgotPassword = async (req, res) => {
     const { email } = req.body;
     
     // Check if user exists
-    const user = await prisma.user.findUnique({ where: { email } });
+    const [user] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.email, email))
+      .limit(1);
+
     if (!user) {
       return response.error(res, "User not found", 404);
     }
@@ -236,7 +265,7 @@ export const forgotPassword = async (req, res) => {
   }
 };
 
-// Verify reset password OTP (optional step for frontend confirmation)
+// Verify reset password OTP
 export const verifyResetOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;

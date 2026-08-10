@@ -1,26 +1,27 @@
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { generateCuid } from "../db/cuid.js";
 
 // Update user points (Admin/Mentor only)
 export const updateUserPoints = async (userId, pointsToAdd) => {
   // Cari user
-  const user = await prisma.user.findUnique({
-    where: { users_id: userId },
-  });
+  const [user] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.users_id, userId))
+    .limit(1);
+    
   if (!user) throw new Error("User not found");
 
-  // Ambil points lama, pastikan tipe data sesuai schema (Int/String)
-  const currentPoints =
-    typeof user.points === "string" ? Number(user.points) : user.points;
-  const newPoints = currentPoints + pointsToAdd;
+  const newPoints = user.points + pointsToAdd;
 
   // Update points
-  const updated = await prisma.user.update({
-    where: { users_id: userId },
-    data: {
-      points:
-        typeof user.points === "string" ? newPoints.toString() : newPoints,
-    },
-  });
+  const [updated] = await db
+    .update(schema.User)
+    .set({ points: newPoints, updated_at: new Date() })
+    .where(eq(schema.User.users_id, userId))
+    .returning();
 
   return {
     users_id: updated.users_id,
@@ -31,15 +32,23 @@ export const updateUserPoints = async (userId, pointsToAdd) => {
   };
 };
 
-// Redeem product with points
+// Redeem product with points (with Atomic decrement to prevent race conditions - Fixes QA-04)
 export const redeemProduct = async (userId, productId) => {
   // Ambil user dan produk
-  const user = await prisma.user.findUnique({ where: { users_id: userId } });
+  const [user] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.users_id, userId))
+    .limit(1);
+    
   if (!user) throw new Error("User not found");
 
-  const product = await prisma.product.findUnique({
-    where: { product_id: productId },
-  });
+  const [product] = await db
+    .select()
+    .from(schema.product)
+    .where(eq(schema.product.product_id, productId))
+    .limit(1);
+    
   if (!product) throw new Error("Product not found");
 
   if (!product.is_active) throw new Error("Product is not active");
@@ -48,24 +57,45 @@ export const redeemProduct = async (userId, productId) => {
   // Pastikan poin cukup
   if (user.points < product.price) throw new Error("Insufficient points");
 
-  // Kurangi poin user dan stok produk (gunakan transaksi)
-  const [updatedUser, updatedProduct, redemption] = await prisma.$transaction([
-    prisma.user.update({
-      where: { users_id: userId },
-      data: { points: user.points - product.price },
-    }),
-    prisma.product.update({
-      where: { product_id: productId },
-      data: { stock: product.stock - 1 },
-    }),
-    prisma.redemption.create({
-      data: {
+  const redemptionId = generateCuid();
+
+  // Kurangi poin user dan stok produk atomically
+  await db.transaction(async (tx) => {
+    // Update user points atomically
+    await tx
+      .update(schema.User)
+      .set({ points: sql`${schema.User.points} - ${product.price}`, updated_at: new Date() })
+      .where(eq(schema.User.users_id, userId));
+
+    // Update product stock atomically
+    await tx
+      .update(schema.product)
+      .set({ stock: sql`${schema.product.stock} - 1`, updated_at: new Date() })
+      .where(eq(schema.product.product_id, productId));
+
+    // Create redemption record
+    await tx
+      .insert(schema.Redemption)
+      .values({
+        redemption_id: redemptionId,
         user_id: userId,
         product_id: productId,
-        points_used: product.price,
-      },
-    }),
-  ]);
+        points_used: Math.round(product.price),
+      });
+  });
+
+  // Re-fetch updated structures
+  const [updatedUser] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.users_id, userId))
+    .limit(1);
+
+  const [updatedProduct] = await db
+    .select()
+    .from(schema.product)
+    .where(eq(schema.product.product_id, productId))
+    .limit(1);
 
   return {
     user: {
@@ -79,7 +109,7 @@ export const redeemProduct = async (userId, productId) => {
       name: updatedProduct.name,
       stock: updatedProduct.stock,
     },
-    redemption_id: redemption.redemption_id,
+    redemption_id: redemptionId,
   };
 };
 
@@ -88,31 +118,47 @@ export const getAllRedeemUser = async (filters = {}) => {
   const { page = 1, limit = 10, search, user_id, product_id } = filters;
   const skip = (page - 1) * Number(limit);
 
-  const where = {};
+  const conditions = [];
 
-  if (user_id) where.user_id = user_id;
-  if (product_id) where.product_id = product_id;
+  if (user_id) conditions.push(eq(schema.Redemption.user_id, user_id));
+  if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
 
   if (search) {
-    where.OR = [
-      { user: { name: { contains: search, mode: "insensitive" } } },
-      { product: { name: { contains: search, mode: "insensitive" } } },
-    ];
+    conditions.push(
+      or(
+        like(schema.User.name, `%${search}%`),
+        like(schema.product.name, `%${search}%`)
+      )
+    );
   }
 
-  const [redemptions, total] = await Promise.all([
-    prisma.redemption.findMany({
-      where,
-      include: {
-        user: { select: { users_id: true, name: true, email: true } },
-        product: { select: { product_id: true, name: true, price: true } },
-      },
-      orderBy: { created_at: "desc" },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.redemption.count({ where }),
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [rows, [countResult]] = await Promise.all([
+    db
+      .select()
+      .from(schema.Redemption)
+      .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
+      .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .where(whereClause)
+      .orderBy(desc(schema.Redemption.created_at))
+      .limit(Number(limit))
+      .offset(skip),
+    db
+      .select({ count: sql`count(*)` })
+      .from(schema.Redemption)
+      .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
+      .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .where(whereClause),
   ]);
+
+  const redemptions = rows.map((row) => ({
+    ...row.Redemption,
+    user: row.User ? { users_id: row.User.users_id, name: row.User.name, email: row.User.email } : null,
+    product: row.product ? { product_id: row.product.product_id, name: row.product.name, price: row.product.price } : null,
+  }));
+
+  const total = Number(countResult?.count || 0);
 
   return {
     redemptions,
@@ -125,31 +171,42 @@ export const getAllRedeemUser = async (filters = {}) => {
   };
 };
 
+// Get user's own redemption history
 export const getMyRedeem = async (userId, filters = {}) => {
   const { page = 1, limit = 10, search, product_id } = filters;
   const skip = (page - 1) * Number(limit);
 
-  const where = { user_id: userId };
-  if (product_id) where.product_id = product_id;
+  const conditions = [eq(schema.Redemption.user_id, userId)];
+  if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
 
   if (search) {
-    where.OR = [
-      { product: { name: { contains: search, mode: "insensitive" } } },
-    ];
+    conditions.push(like(schema.product.name, `%${search}%`));
   }
 
-  const [redemptions, total] = await Promise.all([
-    prisma.redemption.findMany({
-      where,
-      include: {
-        product: { select: { product_id: true, name: true, price: true } },
-      },
-      orderBy: { created_at: "desc" },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.redemption.count({ where }),
+  const whereClause = and(...conditions);
+
+  const [rows, [countResult]] = await Promise.all([
+    db
+      .select()
+      .from(schema.Redemption)
+      .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .where(whereClause)
+      .orderBy(desc(schema.Redemption.created_at))
+      .limit(Number(limit))
+      .offset(skip),
+    db
+      .select({ count: sql`count(*)` })
+      .from(schema.Redemption)
+      .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .where(whereClause),
   ]);
+
+  const redemptions = rows.map((row) => ({
+    ...row.Redemption,
+    product: row.product ? { product_id: row.product.product_id, name: row.product.name, price: row.product.price } : null,
+  }));
+
+  const total = Number(countResult?.count || 0);
 
   return {
     redemptions,

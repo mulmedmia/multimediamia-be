@@ -4,23 +4,27 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy",
+    "postinstall": "drizzle-kit generate",
+    "vercel-build": "drizzle-kit generate && node src/db/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "seed": "node prisma/seed.js"
+    "seed": "node src/db/seed.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node src/db/migrate.js",
+    "db:push": "drizzle-kit push",
+    "db:reset": "node src/db/reset.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@prisma/client": "^6.12.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "imagekit": "^6.0.0",
@@ -28,10 +32,11 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.1",
     "nodemailer": "^7.0.3",
+    "pg": "^8.22.0",
     "zod": "^3.25.23"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10",
-    "prisma": "^6.12.0"
+    "drizzle-kit": "^0.31.10",
+    "nodemon": "^3.1.10"
   }
 }

@@ -12,8 +12,9 @@ import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
 const router = Router();
 
-router.get("/", getRegistrations, isAdmin);
-router.get("/:id", getRegistration, isAdmin);
+// Get routes (authenticated users can fetch registrations; non-admin users get automatically filtered to their own registrations)
+router.get("/", authenticateToken, getRegistrations);
+router.get("/:id", authenticateToken, getRegistration);
 
 // User routes (must be authenticated)
 router.post("/", authenticateToken, createNewRegistration);
@@ -30,4 +31,5 @@ router.patch(
   isAdmin,
   giveRegistrationFeedback
 );
+
 export default router;

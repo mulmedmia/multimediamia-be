@@ -36,10 +36,11 @@ router.patch(
   updateSubmissionStatusById
 );
 
+// Juri & Admin routes (Fixes QA-05 by allowing both Admin and JURI roles to add scores/feedback)
 router.patch(
   "/:id/score-feedback",
   authenticateToken,
-  isAdmin,
+  isJuri,
   updateSubmissionScoreFeedbackById
 );
 

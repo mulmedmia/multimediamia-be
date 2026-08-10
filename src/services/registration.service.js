@@ -1,109 +1,121 @@
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { generateCuid } from "../db/cuid.js";
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
   const { page = 1, limit = 10, category_id, user_id, is_verified } = filters;
   const skip = (page - 1) * Number(limit);
 
-  const where = {};
+  const conditions = [];
   
   if (category_id) {
-    where.category_id = category_id;
+    conditions.push(eq(schema.Registration.category_id, category_id));
   }
   
   if (user_id) {
-    where.user_id = user_id;
+    conditions.push(eq(schema.Registration.user_id, user_id));
   }
   
   if (is_verified !== undefined) {
-    where.is_verified = is_verified === 'true';
+    conditions.push(eq(schema.Registration.is_verified, is_verified === 'true'));
   }
 
-  const [registrations, totalRegistrations] = await Promise.all([
-    prisma.registration.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-        category: {
-          select: {
-            category_name: true,
-            team_type: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        created_at: "desc",
-      },
-      skip,
-      take: Number(limit),
-    }),
-    prisma.registration.count({ where }),
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [rows, [countResult]] = await Promise.all([
+    db
+      .select()
+      .from(schema.Registration)
+      .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
+      .where(whereClause)
+      .orderBy(desc(schema.Registration.created_at))
+      .limit(Number(limit))
+      .offset(skip),
+    db
+      .select({ count: sql`count(*)` })
+      .from(schema.Registration)
+      .where(whereClause),
   ]);
+
+  const registrations = rows.map((row) => ({
+    ...row.Registration,
+    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    category: row.Category
+      ? {
+          category_name: row.Category.category_name,
+          team_type: row.Category.team_type,
+          name: row.Category.name,
+        }
+      : null,
+  }));
+
+  const total = Number(countResult?.count || 0);
 
   return {
     registrations,
     meta: {
-      total: totalRegistrations,
+      total,
       page: Number(page),
       limit: Number(limit),
-      totalPages: Math.ceil(totalRegistrations / Number(limit)),
+      totalPages: Math.ceil(total / Number(limit)),
     },
   };
 };
 
 // Get registration by ID
 export const getRegistrationById = async (id) => {
-  const registration = await prisma.registration.findUnique({
-    where: { registration_id: id },
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      category: {
-        select: {
-          category_name: true,
-          team_type: true,
-          name: true,
-        },
-      },
-    },
-  });
+  const [row] = await db
+    .select()
+    .from(schema.Registration)
+    .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+    .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
+    .where(eq(schema.Registration.registration_id, id))
+    .limit(1);
 
-  if (!registration) {
+  if (!row) {
     throw new Error("Registration not found");
   }
 
-  return registration;
+  return {
+    ...row.Registration,
+    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    category: row.Category
+      ? {
+          category_name: row.Category.category_name,
+          team_type: row.Category.team_type,
+          name: row.Category.name,
+        }
+      : null,
+  };
 };
 
 // Create new registration
 export const createRegistration = async (registrationData) => {
   // Get the category to check team_type
-  const category = await prisma.category.findUnique({
-    where: { category_id: registrationData.category_id },
-    select: { team_type: true },
-  });
+  const [category] = await db
+    .select({ team_type: schema.Category.team_type })
+    .from(schema.Category)
+    .where(eq(schema.Category.category_id, registrationData.category_id))
+    .limit(1);
 
   if (!category) {
     throw new Error("Category not found");
   }
 
   // Check if user already registered for this category
-  const existingRegistration = await prisma.registration.findFirst({
-    where: {
-      user_id: registrationData.user_id,
-      category_id: registrationData.category_id,
-    },
-  });
+  const [existingRegistration] = await db
+    .select()
+    .from(schema.Registration)
+    .where(
+      and(
+        eq(schema.Registration.user_id, registrationData.user_id),
+        eq(schema.Registration.category_id, registrationData.category_id)
+      )
+    )
+    .limit(1);
 
   if (existingRegistration) {
     throw new Error("User already registered for this category");
@@ -114,96 +126,85 @@ export const createRegistration = async (registrationData) => {
     throw new Error("Team name is required for group registrations");
   }
 
-  const registration = await prisma.registration.create({
-    data: registrationData,
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      category: {
-        select: {
-          category_name: true,
-          team_type: true,
-          name: true,
-        },
-      },
-    },
+  const newId = generateCuid();
+  await db.insert(schema.Registration).values({
+    registration_id: newId,
+    user_id: registrationData.user_id,
+    category_id: registrationData.category_id,
+    file_url: registrationData.file_url,
+    team_name: registrationData.team_name || null,
+    team_members: registrationData.team_members || null,
+    is_verified: registrationData.is_verified || false,
+    feedback: registrationData.feedback || null,
   });
 
-  return registration;
+  return await getRegistrationById(newId);
 };
 
 // Update registration
 export const updateRegistration = async (id, registrationData) => {
   // Check if registration exists
-  const registration = await prisma.registration.findUnique({
-    where: { registration_id: id },
-    include: {
-      category: {
-        select: { team_type: true },
-      },
-    },
-  });
+  const [registration] = await db
+    .select()
+    .from(schema.Registration)
+    .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
+    .where(eq(schema.Registration.registration_id, id))
+    .limit(1);
 
   if (!registration) {
     throw new Error("Registration not found");
   }
 
+  const teamType = registration.Category?.team_type;
+
   // If this is a GROUP registration and team name is being set to null, reject
   if (
-    registration.category.team_type === "GROUP" && 
+    teamType === "GROUP" && 
     registrationData.team_name === null
   ) {
     throw new Error("Team name is required for group registrations");
   }
 
-   const updatedRegistration = await prisma.registration.update({
-    where: { registration_id: id },
-    data: registrationData,
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      category: {
-        select: {
-          category_name: true,
-          team_type: true,
-          name: true,
-        },
-      },
-    },
-  });
-  return updatedRegistration;
+  await db
+    .update(schema.Registration)
+    .set({
+      ...registrationData,
+      updated_at: new Date(),
+    })
+    .where(eq(schema.Registration.registration_id, id));
+
+  return await getRegistrationById(id);
 };
 
 // Delete registration
 export const deleteRegistration = async (id) => {
   // Check if registration exists
-  const registration = await prisma.registration.findUnique({
-    where: { registration_id: id },
-  });
+  const [registration] = await db
+    .select()
+    .from(schema.Registration)
+    .where(eq(schema.Registration.registration_id, id))
+    .limit(1);
 
   if (!registration) {
     throw new Error("Registration not found");
   }
 
-  // Hapus submission terkait (jika ada)
-  await prisma.submission.deleteMany({
-    where: {
-      user_id: registration.user_id,
-      category_id: registration.category_id,
-    },
-  });
+  // Delete registrations and submissions inside transaction
+  await db.transaction(async (tx) => {
+    // Delete associated submissions
+    await tx
+      .delete(schema.Submission)
+      .where(
+        and(
+          eq(schema.Submission.user_id, registration.user_id),
+          eq(schema.Submission.category_id, registration.category_id)
+        )
+      );
 
-  // Hapus registration
-  await prisma.registration.delete({
-    where: { registration_id: id },
+    // Delete registration
+    await tx
+      .delete(schema.Registration)
+      .where(eq(schema.Registration.registration_id, id));
   });
 
   return true;
