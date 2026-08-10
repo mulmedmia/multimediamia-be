@@ -1,31 +1,49 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { generateCuid } from "../db/cuid.js";
 
 // User-related database operations
 const findUserByEmail = async (email) => {
-  return await prisma.user.findUnique({
-    where: { email },
-  });
+  const [user] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.email, email))
+    .limit(1);
+  return user || null;
 };
 
 const findUserByNim = async (nim) => {
-  return await prisma.user.findUnique({
-    where: { nim },
-  });
+  if (!nim) return null;
+  const [user] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.nim, nim))
+    .limit(1);
+  return user || null;
 };
 
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
 
-  return await prisma.user.create({
-    data: {
-      ...userData,
+  const [user] = await db
+    .insert(schema.User)
+    .values({
+      users_id: generateCuid(),
+      name: userData.name,
+      email: userData.email,
+      nim: userData.nim || null,
       password: hashedPassword,
+      role: "USER",
       is_verified: false,
-    },
-  });
+      points: 0,
+    })
+    .returning();
+
+  return user;
 };
 
 const validatePassword = async (plainPassword, hashedPassword) => {
@@ -68,10 +86,11 @@ export const verifyUserOtp = async (email, otp) => {
   }
 
   // Update user verification status
-  const updatedUser = await prisma.user.update({
-    where: { email },
-    data: { is_verified: true },
-  });
+  const [updatedUser] = await db
+    .update(schema.User)
+    .set({ is_verified: true })
+    .where(eq(schema.User.email, email))
+    .returning();
 
   // Return user without password
   const { password, ...userWithoutPassword } = updatedUser;
@@ -124,10 +143,11 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   const hashedPassword = await bcrypt.hash(newPassword, salt);
 
   // Update user password
-  const updatedUser = await prisma.user.update({
-    where: { email },
-    data: { password: hashedPassword },
-  });
+  const [updatedUser] = await db
+    .update(schema.User)
+    .set({ password: hashedPassword })
+    .where(eq(schema.User.email, email))
+    .returning();
 
   // Return user without password
   const { password, ...userWithoutPassword } = updatedUser;

@@ -7,7 +7,9 @@ import {
 } from "../services/registration.service.js";
 import { response } from "../utils/response.js";
 import { createRegistrationSchema, updateRegistrationSchema } from "../models/registration.model.js";
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq } from "drizzle-orm";
 
 // Helper: Validate Google Drive link
 const isGoogleDriveLink = (url) => {
@@ -24,6 +26,12 @@ export const getRegistrations = async (req, res) => {
       user_id: req.query.user_id,
       is_verified: req.query.is_verified,
     };
+
+    // Non-admin users are restricted to their own registrations
+    if (req.user && req.user.role !== "ADMIN") {
+      filters.user_id = req.user.userId;
+    }
+
     const result = await getAllRegistrations(filters);
     return response.success(res, result, "Registrations retrieved successfully");
   } catch (error) {
@@ -35,6 +43,12 @@ export const getRegistrations = async (req, res) => {
 export const getRegistration = async (req, res) => {
   try {
     const registration = await getRegistrationById(req.params.id);
+
+    // Non-admin users can only view their own registration
+    if (req.user && req.user.role !== "ADMIN" && registration.user_id !== req.user.userId) {
+      return response.error(res, "Forbidden: You do not have access to this registration", 403);
+    }
+
     return response.success(res, registration, "Registration retrieved successfully");
   } catch (error) {
     if (error.message === "Registration not found") {
@@ -44,28 +58,31 @@ export const getRegistration = async (req, res) => {
   }
 };
 
-// Create new registration (user only)
+// Create new registration (user only - Fixes QA-02 by forcing user_id from token)
 export const createNewRegistration = async (req, res) => {
   try {
-    const { user_id, category_id, file_url, team_name, team_members } = req.body;
+    const { category_id, file_url, team_name, team_members } = req.body;
+    const userId = req.user.userId; // Get from authenticated JWT token
 
     // Validate Google Drive link
     if (!file_url || !isGoogleDriveLink(file_url)) {
       return response.error(res, "file_url must be a valid Google Drive link", 400);
     }
 
-    // Get category to check team_type
-    const category = await prisma.category.findUnique({
-      where: { category_id },
-      select: { team_type: true },
-    });
+    // Get category to check team_type (Drizzle port)
+    const [category] = await db
+      .select({ team_type: schema.Category.team_type })
+      .from(schema.Category)
+      .where(eq(schema.Category.category_id, category_id))
+      .limit(1);
+
     if (!category) {
       return response.error(res, "Category not found", 404);
     }
 
     // Build registration data based on team_type
     let registrationData = {
-      user_id,
+      user_id: userId,
       category_id,
       file_url,
     };
@@ -104,11 +121,27 @@ export const createNewRegistration = async (req, res) => {
   }
 };
 
-// Update registration (user only, cannot update is_verified)
+// Update registration (user only - Fixes QA-02 by checking owner authorization)
 export const updateExistingRegistration = async (req, res) => {
   try {
     const registrationId = req.params.id;
     const { file_url, team_name, team_members } = req.body;
+    const userId = req.user.userId;
+
+    // Check if registration exists and verify ownership
+    const [registration] = await db
+      .select()
+      .from(schema.Registration)
+      .where(eq(schema.Registration.registration_id, registrationId))
+      .limit(1);
+
+    if (!registration) {
+      return response.error(res, "Registration not found", 404);
+    }
+
+    if (registration.user_id !== userId && req.user.role !== "ADMIN") {
+      return response.error(res, "Forbidden: You are not authorized to update this registration", 403);
+    }
 
     // Validate Google Drive link if provided
     if (file_url && !isGoogleDriveLink(file_url)) {
@@ -141,10 +174,28 @@ export const updateExistingRegistration = async (req, res) => {
   }
 };
 
-// Delete registration (user only)
+// Delete registration (user only - Fixes QA-02 by checking owner authorization)
 export const deleteRegistrationById = async (req, res) => {
   try {
-    await deleteRegistration(req.params.id);
+    const registrationId = req.params.id;
+    const userId = req.user.userId;
+
+    // Check if registration exists and verify ownership
+    const [registration] = await db
+      .select()
+      .from(schema.Registration)
+      .where(eq(schema.Registration.registration_id, registrationId))
+      .limit(1);
+
+    if (!registration) {
+      return response.error(res, "Registration not found", 404);
+    }
+
+    if (registration.user_id !== userId && req.user.role !== "ADMIN") {
+      return response.error(res, "Forbidden: You are not authorized to delete this registration", 403);
+    }
+
+    await deleteRegistration(registrationId);
     return response.success(res, null, "Registration deleted successfully");
   } catch (error) {
     if (error.message === "Registration not found") {
@@ -190,4 +241,3 @@ export const giveRegistrationFeedback = async (req, res) => {
     return response.error(res, "Failed to give feedback", 500, error.message);
   }
 };
-

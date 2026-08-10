@@ -14,8 +14,8 @@ const router = Router();
 router.get("/profile", authenticateToken, getProfile);
 router.patch("/profile", authenticateToken, updateProfile);
 
-// Admin routes
-router.get("/regular", getRegularUsersOnly);
+// Admin routes (Securing regular user directory endpoint - Fixes QA-03)
+router.get("/regular", authenticateToken, isAdmin, getRegularUsersOnly);
 router.get("/", authenticateToken, isAdmin, getUsers);
 router.get("/:id", authenticateToken, isAdmin, getUserById);
 

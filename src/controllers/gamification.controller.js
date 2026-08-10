@@ -5,7 +5,9 @@ import {
   getMyRedeem,
 } from "../services/gamification.service.js";
 import { response } from "../utils/response.js";
-import prisma from "../config/prisma.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq, and, sql, desc } from "drizzle-orm";
 
 // Update user points (Admin)
 export const updateUserPointsController = async (req, res) => {
@@ -44,22 +46,27 @@ export const getLeaderboardByCategory = async (req, res) => {
     const { category_id } = req.params;
     const { limit = 10 } = req.query;
 
-    // Ambil submission dengan score terbesar, hanya yang sudah diverifikasi
-    const submissions = await prisma.submission.findMany({
-      where: {
-        category_id,
-        is_verified: true,
-        score: { not: null },
-      },
-      orderBy: {
-        score: "desc",
-      },
-      take: Number(limit),
-      include: {
-        user: { select: { name: true, email: true } },
-        category: { select: { category_name: true, name: true } },
-      },
-    });
+    // Ambil submission dengan score terbesar, hanya yang sudah diverifikasi (Drizzle port)
+    const rows = await db
+      .select()
+      .from(schema.Submission)
+      .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+      .where(
+        and(
+          eq(schema.Submission.category_id, category_id),
+          eq(schema.Submission.is_verified, true),
+          sql`${schema.Submission.score} is not null`
+        )
+      )
+      .orderBy(desc(schema.Submission.score))
+      .limit(Number(limit));
+
+    const submissions = rows.map((row) => ({
+      ...row.Submission,
+      user: row.User ? { name: row.User.name, email: row.User.email } : null,
+      category: row.Category ? { category_name: row.Category.category_name, name: row.Category.name } : null,
+    }));
 
     return response.success(
       res,
@@ -128,6 +135,7 @@ export const getAllRedeemUserController = async (req, res) => {
     );
   }
 };
+
 // Get my redemption history
 export const getMyRedeemController = async (req, res) => {
   try {
