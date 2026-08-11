@@ -35,14 +35,18 @@ export const createOTP = async (email) => {
       console.log(`========================================\n`);
     }
 
-    // Send OTP via email (log warning if email fails in non-production)
+    // Send OTP via email
     try {
       await sendOtpEmail(email, otp);
     } catch (emailError) {
-      if (process.env.NODE_ENV === "production") {
+      console.error(`⚠️ [OTP EMAIL FAILED] ${emailError.message}`);
+      if (emailError.message.includes("ETIMEDOUT") || emailError.message.includes("timeout")) {
+        console.warn("⚠️ [RENDER SMTP BLOCK] Outbound TCP SMTP (ports 465/587) is blocked by your hosting provider. Set RESEND_API_KEY to send emails via HTTPS API.");
+      }
+      if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_OTP_FALLBACK !== "true") {
         throw emailError;
       }
-      console.warn("⚠️ [DEV WARNING] Could not send OTP email via SMTP, but OTP was generated and saved to DB for dev testing.");
+      console.warn("⚠️ [OTP FALLBACK] Registration allowed to proceed; OTP saved to DB for verification.");
     }
 
     return true;
