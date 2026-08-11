@@ -28,10 +28,12 @@ export const createOTP = async (email) => {
       expires_at: expiresAt,
     });
     
-    // Always log OTP in terminal console for easy local testing
-    console.log(`\n========================================`);
-    console.log(`[DEV OTP LOG] Code for ${email}: ${otp}`);
-    console.log(`========================================\n`);
+    // Log OTP in terminal console for dev testing only (disabled in production)
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n========================================`);
+      console.log(`[DEV OTP LOG] Code for ${email}: ${otp}`);
+      console.log(`========================================\n`);
+    }
 
     // Send OTP via email (log warning if email fails in non-production)
     try {
