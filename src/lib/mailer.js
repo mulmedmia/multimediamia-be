@@ -1,12 +1,17 @@
 import nodemailer from "nodemailer";
 
-// Create a transporter object
+// Create a transporter object configured for SSL on port 465
 const transporter = nodemailer.createTransport({
-  service: "gmail", // You can use other services like SendGrid, Mailgun, etc.
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // SSL direct connection (works better on cloud hosts like Render)
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 
 // Function to send OTP verification email

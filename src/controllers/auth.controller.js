@@ -9,11 +9,12 @@ import { response } from "../utils/response.js";
 
 // Register user and send OTP
 export const register = async (req, res) => {
+  let createdUser = null;
   try {
     const { name, email, password } = req.body;
     
     // Register user (will be unverified)
-    const user = await registerUser({ name, email, password });
+    createdUser = await registerUser({ name, email, password });
     
     // Generate and send OTP
     await createOTP(email);
@@ -21,17 +22,26 @@ export const register = async (req, res) => {
     return response.success(
       res,
       {
-        users_id: user.users_id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        is_verified: user.is_verified,
+        users_id: createdUser.users_id,
+        name: createdUser.name,
+        email: createdUser.email,
+        role: createdUser.role,
+        is_verified: createdUser.is_verified,
         otp_sent: true
       },
       "OTP sent to your email",
       201
     );
   } catch (error) {
+    if (createdUser && createdUser.users_id) {
+      try {
+        // Rollback created user if sending OTP email failed
+        await db.delete(schema.User).where(eq(schema.User.users_id, createdUser.users_id));
+      } catch (rollbackErr) {
+        console.error("Failed to rollback user creation:", rollbackErr);
+      }
+    }
+
     if (error.message === "Email already registered") {
       return response.error(res, error.message, 400);
     }
