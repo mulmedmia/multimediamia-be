@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.js",
     "db:push": "drizzle-kit push",
+    "db:push:prod": "npx dotenv-cli -e .env.production -- drizzle-kit push",
     "db:reset": "node src/db/reset.js"
   },
   "keywords": [],
@@ -24,6 +25,7 @@
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
+    "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
@@ -36,7 +38,6 @@
     "zod": "^3.25.23"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10",
     "nodemon": "^3.1.10"
   }
 }

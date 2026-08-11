@@ -18,8 +18,8 @@ Ikuti langkah-langkah berikut untuk menyiapkan proyek di komputer lokal Anda:
 ### 1. Clone Repositori
 
 ```bash
-git clone https://github.com/KSMMultimedia/multimedia-backend.git
-cd multimedia-backend
+git clone https://github.com/mulmedmia/multimediamia-be.git
+cd multimediamia-be
 ```
 
 ### 2. Instal Dependensi
@@ -30,20 +30,52 @@ npm install
 yarn install
 ```
 
-### 3. Pengaturan Lingkungan
+### 3. Pengaturan Lingkungan (Environment Variables)
 
-Buat file `.env` di direktori root, lalu isi dengan konfigurasi lingkungan yang sesuai.
-
-### 4. Pengaturan Database
-
-Siapkan database dengan Prisma:
+Salin file `env.example` menjadi `.env`:
 
 ```bash
-# Generate Prisma client
-npx prisma generate
+cp env.example .env
+```
 
-# Buat database dan jalankan migrasi awal
-npx prisma migrate dev --name init
+Isi variabel di file `.env` sesuai dengan konfigurasi lokal Anda:
+
+```env
+DATABASE_URL=postgresql://postgres:password@localhost:5432/mia_db
+PORT=5000
+JWT_SECRET=supersecretkey_mia2026
+JWT_EXPIRATION=1d
+
+# ImageKit (Opsional untuk upload gambar)
+IMAGEKIT_PUBLIC_KEY=your_public_key
+IMAGEKIT_PRIVATE_KEY=your_private_key
+IMAGEKIT_URL_ENDPOINT=your_url_endpoint
+
+# Email SMTP Configuration (Opsional untuk OTP)
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+
+# Admin Initial Seed
+ADMIN_NAME=Admin MIA
+ADMIN_EMAIL=admin@mia.com
+ADMIN_PASSWORD=admin123456
+```
+
+### 4. Pengaturan Database (Drizzle ORM & PostgreSQL)
+
+Pastikan service **PostgreSQL** sudah berjalan dan database (misal: `mia_db`) sudah dibuat.
+
+Jalankan perintah berikut untuk menyinkronkan struktur tabel dan mengisi data awal (seeding):
+
+```bash
+# Push skema Drizzle ke database
+npm run db:push
+
+# (Opsional) Jalankan migrasi SQL jika ada perubahan skema lanjutan
+npm run db:migrate
+
+# Jalankan seeder untuk membuat akun Admin utama
+npm run seed
 ```
 
 ---
@@ -93,6 +125,14 @@ yarn start
 
 ---
 
+## 🌿 Git & GitHub Workflow
+
+1. **Branch Strategy**: Gunakan branch `dev` untuk pengujian dan branch `feature/nama-fitur` untuk pengerjaan fitur baru.
+2. **Commit Standard**: Gunakan prefix `feat:`, `fix:`, `docs:`, `style:`.
+3. **Pull Request**: Buat PR dari `feature/nama-fitur` ke `dev` atau `main` dan minta code review dari anggota tim sebelum merge.
+
+---
+
 ## 🧑‍💻 Kontribusi
 
-Team Pengembang
+Tim Pengembang Multimedia In Action (MIA 2026)
