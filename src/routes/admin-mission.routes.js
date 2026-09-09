@@ -6,6 +6,7 @@ import {
   updateExistingMission,
   deleteMissionById,
   getMissionSubmissionsById,
+  reviewSubmissionById,
 } from "../controllers/admin-mission.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
@@ -31,5 +32,10 @@ router.delete("/:id", deleteMissionById);
 
 // 6. GET /api/v1/admin/missions/:id/submissions - Mengambil daftar pengumpulan peserta pada misi tertentu
 router.get("/:id/submissions", getMissionSubmissionsById);
+
+// 7. POST /api/v1/admin/submissions/:submissionId/review (atau /admin/missions/submissions/:submissionId/review)
+// Admin meninjau pengumpulan peserta & memberikan reward XP + Diamond secara atomik
+router.post("/submissions/:submissionId/review", reviewSubmissionById);
+router.post("/:submissionId/review", reviewSubmissionById);
 
 export default router;

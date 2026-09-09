@@ -233,7 +233,7 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
 };
 
 // ==========================================
-// Participant Mission Functions (DEV-17)
+// Participant Mission Functions 
 // ==========================================
 
 /**
@@ -296,15 +296,15 @@ export const getActiveMissionsForUser = async (userId) => {
         created_at: row.created_at,
         my_submission: row.sub_id
           ? {
-              submission_id: row.sub_id,
-              submission_url: row.sub_url,
-              notes: row.sub_notes,
-              status: row.sub_status,
-              awarded_xp: row.sub_awarded_xp,
-              awarded_diamond: row.sub_awarded_diamond,
-              admin_feedback: row.sub_admin_feedback,
-              created_at: row.sub_created_at,
-            }
+            submission_id: row.sub_id,
+            submission_url: row.sub_url,
+            notes: row.sub_notes,
+            status: row.sub_status,
+            awarded_xp: row.sub_awarded_xp,
+            awarded_diamond: row.sub_awarded_diamond,
+            admin_feedback: row.sub_admin_feedback,
+            created_at: row.sub_created_at,
+          }
           : null,
       });
     }
@@ -355,15 +355,15 @@ export const getMissionByIdForUser = async (missionId, userId) => {
     created_at: mission.created_at,
     my_submission: submission
       ? {
-          submission_id: submission.submission_id,
-          submission_url: submission.submission_url,
-          notes: submission.notes,
-          status: submission.status,
-          awarded_xp: submission.awarded_xp,
-          awarded_diamond: submission.awarded_diamond,
-          admin_feedback: submission.admin_feedback,
-          created_at: submission.created_at,
-        }
+        submission_id: submission.submission_id,
+        submission_url: submission.submission_url,
+        notes: submission.notes,
+        status: submission.status,
+        awarded_xp: submission.awarded_xp,
+        awarded_diamond: submission.awarded_diamond,
+        admin_feedback: submission.admin_feedback,
+        created_at: submission.created_at,
+      }
       : null,
   };
 };
@@ -448,3 +448,124 @@ export const submitMission = async (missionId, userId, data) => {
 
   return newSubmission;
 };
+
+// ==========================================
+// Admin Mission Review Functions 
+// ==========================================
+
+/**
+ * Admin mereview pengumpulan misi peserta
+ * Jika status === "APPROVED":
+ * - Validasi batas min/max XP & Diamond misi
+ * - Jalankan transaksi atomik (db.transaction)
+ *   1. Update status MissionSubmission -> APPROVED, set awarded_xp, awarded_diamond, admin_feedback, reviewed_at
+ *   2. Atomic increment User.xp & User.points
+ * Jika status === "REJECTED":
+ * - Update status MissionSubmission -> REJECTED, admin_feedback, reviewed_at
+ * - Saldo User tidak bertambah
+ */
+export const reviewMissionSubmission = async (submissionId, data) => {
+  // 1. Ambil data submission beserta misi terkait
+  const [row] = await db
+    .select({
+      submission: schema.MissionSubmission,
+      mission: schema.Mission,
+    })
+    .from(schema.MissionSubmission)
+    .innerJoin(
+      schema.Mission,
+      eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id)
+    )
+    .where(eq(schema.MissionSubmission.submission_id, submissionId))
+    .limit(1);
+
+  if (!row) {
+    throw new Error("Submission not found");
+  }
+
+  const { submission, mission } = row;
+
+  // 2. Cegah double approval (jika sudah APPROVED, tolak agar tidak double reward)
+  if (submission.status === "APPROVED") {
+    throw new Error("Submission has already been approved");
+  }
+
+  // 3. Logika untuk status REJECTED
+  if (data.status === "REJECTED") {
+    const [updatedSubmission] = await db
+      .update(schema.MissionSubmission)
+      .set({
+        status: "REJECTED",
+        awarded_xp: null,
+        awarded_diamond: null,
+        admin_feedback: data.admin_feedback || null,
+        reviewed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(eq(schema.MissionSubmission.submission_id, submissionId))
+      .returning();
+
+    return {
+      submission: updatedSubmission,
+    };
+  }
+
+  // 4. Logika untuk status APPROVED
+  // Validasi rentang reward terhadap ketentuan misi
+  if (data.awarded_xp < mission.min_xp || data.awarded_xp > mission.max_xp) {
+    throw new Error(
+      `awarded_xp must be between ${mission.min_xp} and ${mission.max_xp}`
+    );
+  }
+
+  if (
+    data.awarded_diamond < mission.min_diamond ||
+    data.awarded_diamond > mission.max_diamond
+  ) {
+    throw new Error(
+      `awarded_diamond must be between ${mission.min_diamond} and ${mission.max_diamond}`
+    );
+  }
+
+  // Jalankan Transaksi Atomik (db.transaction)
+  const result = await db.transaction(async (tx) => {
+    // 4a. Update status MissionSubmission menjadi APPROVED
+    const [updatedSub] = await tx
+      .update(schema.MissionSubmission)
+      .set({
+        status: "APPROVED",
+        awarded_xp: data.awarded_xp,
+        awarded_diamond: data.awarded_diamond,
+        admin_feedback: data.admin_feedback || null,
+        reviewed_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where(eq(schema.MissionSubmission.submission_id, submissionId))
+      .returning();
+
+    // 4b. Increment User.xp & User.points (Diamond) secara atomik
+    const [updatedUser] = await tx
+      .update(schema.User)
+      .set({
+        xp: sql`${schema.User.xp} + ${data.awarded_xp}`,
+        points: sql`${schema.User.points} + ${data.awarded_diamond}`,
+        updated_at: new Date(),
+      })
+      .where(eq(schema.User.users_id, submission.user_id))
+      .returning({
+        users_id: schema.User.users_id,
+        name: schema.User.name,
+        email: schema.User.email,
+        xp: schema.User.xp,
+        points: schema.User.points,
+      });
+
+    return {
+      submission: updatedSub,
+      user: updatedUser,
+    };
+  });
+
+  return result;
+};
+

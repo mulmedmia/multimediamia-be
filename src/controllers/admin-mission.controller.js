@@ -5,6 +5,7 @@ import {
   updateMission,
   deleteMission,
   getMissionSubmissions,
+  reviewMissionSubmission,
 } from "../services/mission.service.js";
 import { response } from "../utils/response.js";
 import {
@@ -12,6 +13,7 @@ import {
   updateMissionSchema,
   queryMissionsSchema,
   querySubmissionsSchema,
+  reviewMissionSubmissionSchema,
 } from "../models/mission.model.js";
 
 /**
@@ -155,3 +157,45 @@ export const getMissionSubmissionsById = async (req, res) => {
     );
   }
 };
+
+/**
+ * [POST /api/v1/admin/submissions/:submissionId/review]
+ * atau [POST /api/v1/admin/missions/submissions/:submissionId/review]
+ * Admin meninjau pengumpulan peserta & memberikan reward XP + Diamond secara atomik
+ */
+export const reviewSubmissionById = async (req, res) => {
+  try {
+    const submissionId = req.params.submissionId || req.params.id;
+
+    const validation = reviewMissionSubmissionSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const result = await reviewMissionSubmission(submissionId, validation.data);
+
+    return response.success(
+      res,
+      result,
+      "Submission reviewed successfully"
+    );
+  } catch (error) {
+    if (error.message === "Submission not found") {
+      return response.error(res, error.message, 404);
+    }
+    if (
+      error.message === "Submission has already been approved" ||
+      error.message.startsWith("awarded_xp must be between") ||
+      error.message.startsWith("awarded_diamond must be between")
+    ) {
+      return response.error(res, error.message, 400);
+    }
+    return response.error(
+      res,
+      "Failed to review mission submission",
+      500,
+      error.message
+    );
+  }
+};
+
