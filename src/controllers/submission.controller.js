@@ -15,6 +15,18 @@ import {
   updateSubmissionScoreFeedbackSchema,
 } from "../models/submission.model.js";
 import { updateSubmissionScoreFeedback } from "../services/submission.service.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq } from "drizzle-orm";
+
+const getJuriCategory = async (userId) => {
+  const [juri] = await db
+    .select()
+    .from(schema.Juri)
+    .where(eq(schema.Juri.users_id, userId))
+    .limit(1);
+  return juri ? juri.category_id : null;
+};
 
 // Get all submissions (admin/mentor)
 export const getSubmissions = async (req, res) => {
@@ -223,6 +235,23 @@ export const updateSubmissionStatusById = async (req, res) => {
 export const updateSubmissionScoreFeedbackById = async (req, res) => {
   try {
     const submissionId = req.params.id;
+
+    // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
+    if (req.user && req.user.role === "JURI") {
+      const submission = await getSubmissionById(submissionId);
+      const assignedCategoryId = await getJuriCategory(req.user.userId);
+      if (
+        !assignedCategoryId ||
+        submission.category_id !== assignedCategoryId
+      ) {
+        return response.error(
+          res,
+          "Forbidden: You can only score submissions in your assigned category",
+          403
+        );
+      }
+    }
+
     const validation = updateSubmissionScoreFeedbackSchema.safeParse(req.body);
     if (!validation.success) {
       return response.validation(res, validation.error.format());
