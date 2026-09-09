@@ -2,7 +2,7 @@ import { registerUser, loginUser, verifyUserOtp, resetPasswordWithOtp } from "..
 import { createOTP, verifyOTP } from "../services/otp.service.js";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { generateCuid } from "../db/cuid.js";
 import bcrypt from "bcrypt";
 import { response } from "../utils/response.js";
@@ -129,7 +129,7 @@ export const login = async (req, res) => {
 // JURI: Create JURI
 export const createJuri = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, category_id } = req.body;
     if (!name || !email || !password) {
       return response.error(res, "Name, email, and password are required", 400);
     }
@@ -145,6 +145,19 @@ export const createJuri = async (req, res) => {
       return response.error(res, "Email already registered", 400);
     }
 
+    // Jika category_id disediakan, pastikan kategori ada
+    if (category_id) {
+      const [category] = await db
+        .select()
+        .from(schema.Category)
+        .where(eq(schema.Category.category_id, category_id))
+        .limit(1);
+
+      if (!category) {
+        return response.error(res, "Category not found", 404);
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const [juri] = await db
       .insert(schema.User)
@@ -158,6 +171,14 @@ export const createJuri = async (req, res) => {
       })
       .returning();
 
+    if (category_id) {
+      await db.insert(schema.Juri).values({
+        juri_id: generateCuid(),
+        users_id: juri.users_id,
+        category_id,
+      });
+    }
+
     return response.success(
       res,
       {
@@ -165,6 +186,7 @@ export const createJuri = async (req, res) => {
         name: juri.name,
         email: juri.email,
         role: juri.role,
+        category_id: category_id || null,
       },
       "JURI created successfully",
       201
@@ -196,7 +218,7 @@ export const deleteJuri = async (req, res) => {
   }
 };
 
-// Get all JURI
+// Get all JURI (beserta kategori yang diampu)
 export const getAllJuri = async (req, res) => {
   try {
     const juries = await db
@@ -207,8 +229,14 @@ export const getAllJuri = async (req, res) => {
         is_verified: schema.User.is_verified,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
+        juri_id: schema.Juri.juri_id,
+        category_id: schema.Juri.category_id,
+        category_name: schema.Category.category_name,
+        category_title: schema.Category.title,
       })
       .from(schema.User)
+      .leftJoin(schema.Juri, eq(schema.User.users_id, schema.Juri.users_id))
+      .leftJoin(schema.Category, eq(schema.Juri.category_id, schema.Category.category_id))
       .where(eq(schema.User.role, "JURI"))
       .orderBy(desc(schema.User.created_at));
 
@@ -218,7 +246,7 @@ export const getAllJuri = async (req, res) => {
   }
 };
 
-// Get JURI by ID
+// Get JURI by ID (beserta kategori yang diampu)
 export const getJuriById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -230,9 +258,15 @@ export const getJuriById = async (req, res) => {
         is_verified: schema.User.is_verified,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
+        juri_id: schema.Juri.juri_id,
+        category_id: schema.Juri.category_id,
+        category_name: schema.Category.category_name,
+        category_title: schema.Category.title,
       })
       .from(schema.User)
-      .where(eq(schema.User.users_id, id))
+      .leftJoin(schema.Juri, eq(schema.User.users_id, schema.Juri.users_id))
+      .leftJoin(schema.Category, eq(schema.Juri.category_id, schema.Category.category_id))
+      .where(and(eq(schema.User.users_id, id), eq(schema.User.role, "JURI")))
       .limit(1);
 
     if (!juri) {
@@ -241,6 +275,71 @@ export const getJuriById = async (req, res) => {
     return response.success(res, juri, "JURI retrieved successfully");
   } catch (error) {
     return response.error(res, "Failed to get JURI", 500, error.message);
+  }
+};
+
+// Assign atau update kategori untuk JURI (1 JURI hanya bisa 1 Kategori)
+export const assignJuriCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_id } = req.body;
+
+    if (!category_id) {
+      return response.error(res, "Category ID is required", 400);
+    }
+
+    // Pastikan user dengan id tsb adalah JURI
+    const [user] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.users_id, id))
+      .limit(1);
+
+    if (!user || user.role !== "JURI") {
+      return response.error(res, "JURI not found", 404);
+    }
+
+    // Pastikan category ada
+    const [category] = await db
+      .select()
+      .from(schema.Category)
+      .where(eq(schema.Category.category_id, category_id))
+      .limit(1);
+
+    if (!category) {
+      return response.error(res, "Category not found", 404);
+    }
+
+    // Cek apakah juri sudah memiliki record di tabel Juri
+    const [existingJuri] = await db
+      .select()
+      .from(schema.Juri)
+      .where(eq(schema.Juri.users_id, id))
+      .limit(1);
+
+    if (existingJuri) {
+      await db
+        .update(schema.Juri)
+        .set({
+          category_id,
+          updated_at: new Date(),
+        })
+        .where(eq(schema.Juri.users_id, id));
+    } else {
+      await db.insert(schema.Juri).values({
+        juri_id: generateCuid(),
+        users_id: id,
+        category_id,
+      });
+    }
+
+    return response.success(
+      res,
+      { users_id: id, category_id, category_name: category.category_name },
+      "Category assigned to JURI successfully"
+    );
+  } catch (error) {
+    return response.error(res, "Failed to assign category to JURI", 500, error.message);
   }
 };
 
