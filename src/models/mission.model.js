@@ -101,3 +101,17 @@ export const querySubmissionsSchema = z.object({
   search: z.string().trim().optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
+
+// --- Participant Mission Submission (DEV-17) ---
+
+export const submitMissionSchema = z.object({
+  submission_url: z
+    .string({ required_error: "submission_url is required" })
+    .url("submission_url must be a valid URL"),
+  notes: z
+    .string()
+    .trim()
+    .max(1000, "notes must not exceed 1000 characters")
+    .nullable()
+    .optional(),
+});
