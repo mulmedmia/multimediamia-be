@@ -12,6 +12,7 @@ import {
   createSubmissionSchema,
   updateSubmissionSchema,
   updateSubmissionStatusSchema,
+  updateSubmissionScoreFeedbackSchema,
 } from "../models/submission.model.js";
 import { updateSubmissionScoreFeedback } from "../services/submission.service.js";
 
@@ -218,16 +219,23 @@ export const updateSubmissionStatusById = async (req, res) => {
   }
 };
 
-// Update submission score and feedback (admin only)
+// Update submission score and feedback (admin/juri)
 export const updateSubmissionScoreFeedbackById = async (req, res) => {
   try {
     const submissionId = req.params.id;
-    const { score, feedback } = req.body;
-    const updated = await updateSubmissionScoreFeedback(submissionId, { score, feedback });
+    const validation = updateSubmissionScoreFeedbackSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const updated = await updateSubmissionScoreFeedback(submissionId, validation.data);
     return response.success(res, updated, "Score & feedback updated successfully");
   } catch (error) {
     if (error.message === "Submission not found") {
       return response.error(res, error.message, 404);
+    }
+    if (error.message === "Score must be between 0 and 100") {
+      return response.error(res, error.message, 400);
     }
     return response.error(res, "Failed to update score/feedback", 500, error.message);
   }
