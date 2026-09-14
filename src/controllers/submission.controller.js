@@ -136,12 +136,29 @@ export const createNewSubmission = async (req, res) => {
   }
 };
 
-// Update submission (check ownership)
+// Update submission (check ownership / JURI category match)
 export const updateExistingSubmission = async (req, res) => {
   try {
     const submissionId = req.params.id;
     const submissionData = req.body;
-    const userId = req.user.userId; // Fix: gunakan field yang benar dari JWT
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
+    if (userRole === "JURI") {
+      const submission = await getSubmissionById(submissionId);
+      const assignedCategoryId = await getJuriCategory(userId);
+      if (
+        !assignedCategoryId ||
+        submission.category_id !== assignedCategoryId
+      ) {
+        return response.error(
+          res,
+          "Forbidden: You can only edit submissions in your assigned category",
+          403
+        );
+      }
+    }
 
     // Validate data
     const validation = updateSubmissionSchema.safeParse(submissionData);
@@ -152,7 +169,8 @@ export const updateExistingSubmission = async (req, res) => {
     const updatedSubmission = await updateSubmission(
       submissionId,
       validation.data,
-      userId
+      userId,
+      userRole
     );
     return response.success(
       res,

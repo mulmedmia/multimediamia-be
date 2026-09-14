@@ -292,7 +292,7 @@ export const createSubmission = async (submissionData, userId) => {
 };
 
 // Update submission
-export const updateSubmission = async (id, submissionData, userId) => {
+export const updateSubmission = async (id, submissionData, userId, userRole = "USER") => {
   const { links, ...submissionFields } = submissionData;
 
   // Check if submission exists
@@ -306,8 +306,8 @@ export const updateSubmission = async (id, submissionData, userId) => {
     throw new Error("Submission not found");
   }
 
-  // Check ownership
-  if (submission.user_id !== userId) {
+  // Check ownership unless requester is ADMIN or JURI
+  if (submission.user_id !== userId && userRole !== "ADMIN" && userRole !== "JURI") {
     throw new Error("Unauthorized to update this submission");
   }
 
