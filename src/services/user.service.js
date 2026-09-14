@@ -25,7 +25,32 @@ export const getUserProfile = async (userId) => {
     throw new Error("User not found");
   }
 
-  return user;
+  let category = null;
+  if (user.role === "JURI") {
+    const [juriCategory] = await db
+      .select({
+        category_id: schema.Category.category_id,
+        category_name: schema.Category.category_name,
+        name: schema.Category.name,
+        title: schema.Category.title,
+      })
+      .from(schema.Juri)
+      .innerJoin(
+        schema.Category,
+        eq(schema.Juri.category_id, schema.Category.category_id)
+      )
+      .where(eq(schema.Juri.users_id, userId))
+      .limit(1);
+
+    if (juriCategory) {
+      category = juriCategory;
+    }
+  }
+
+  return {
+    ...user,
+    category,
+  };
 };
 
 // Update user profile
