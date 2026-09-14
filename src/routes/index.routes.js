@@ -19,6 +19,7 @@ router.use("/submissions", submissionRoutes);
 router.use("/products", productRoutes);
 router.use("/gamification", gamificationRoutes);
 router.use("/admin/missions", adminMissionRoutes);
+router.use("/admin/submissions", adminMissionRoutes);
 router.use("/missions", participantMissionRoutes);
 
 export default router;

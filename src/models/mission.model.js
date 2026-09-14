@@ -102,7 +102,7 @@ export const querySubmissionsSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 
-// --- Participant Mission Submission (DEV-17) ---
+// --- Participant Mission Submission ---
 
 export const submitMissionSchema = z.object({
   submission_url: z
@@ -115,3 +115,33 @@ export const submitMissionSchema = z.object({
     .nullable()
     .optional(),
 });
+
+// --- Admin Review Mission Submission ---
+
+export const reviewMissionSubmissionSchema = z
+  .object({
+    status: z.enum(["APPROVED", "REJECTED"], {
+      required_error: "status is required and must be either APPROVED or REJECTED",
+    }),
+    awarded_xp: z.number().int().nonnegative("awarded_xp must be non-negative").optional(),
+    awarded_diamond: z.number().int().nonnegative("awarded_diamond must be non-negative").optional(),
+    admin_feedback: z
+      .string()
+      .trim()
+      .max(1000, "admin_feedback must not exceed 1000 characters")
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.status === "APPROVED") {
+        return data.awarded_xp !== undefined && data.awarded_diamond !== undefined;
+      }
+      return true;
+    },
+    {
+      message: "awarded_xp and awarded_diamond are required when status is APPROVED",
+      path: ["status"],
+    }
+  );
+
