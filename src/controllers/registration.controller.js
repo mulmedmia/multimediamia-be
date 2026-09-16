@@ -25,6 +25,7 @@ export const getRegistrations = async (req, res) => {
       category_id: req.query.category_id,
       user_id: req.query.user_id,
       is_verified: req.query.is_verified,
+      search: req.query.search,
     };
 
     // Non-admin users are restricted to their own registrations

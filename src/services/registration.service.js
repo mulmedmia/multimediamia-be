@@ -1,11 +1,11 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, ilike } from "drizzle-orm";
 import { generateCuid } from "../db/cuid.js";
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
-  const { page = 1, limit = 10, category_id, user_id, is_verified } = filters;
+  const { page = 1, limit = 10, category_id, user_id, is_verified, search } = filters;
   const skip = (page - 1) * Number(limit);
 
   const conditions = [];
@@ -20,6 +20,17 @@ export const getAllRegistrations = async (filters = {}) => {
   
   if (is_verified !== undefined) {
     conditions.push(eq(schema.Registration.is_verified, is_verified === 'true'));
+  }
+
+  if (search && search.trim() !== "") {
+    const searchPattern = `%${search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(schema.User.name, searchPattern),
+        ilike(schema.User.email, searchPattern),
+        ilike(schema.Registration.team_name, searchPattern)
+      )
+    );
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -37,6 +48,8 @@ export const getAllRegistrations = async (filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Registration)
+      .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(whereClause),
   ]);
 
