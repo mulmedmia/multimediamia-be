@@ -86,12 +86,27 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-// Request OTP (if user wants to resend)
+// Request OTP (if user wants to resend registration OTP)
 export const requestOTP = async (req, res) => {
   try {
     const { email } = req.body;
     
-    // Generate and send OTP
+    // Check if user exists in DB
+    const [user] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.email, email))
+      .limit(1);
+
+    if (!user) {
+      return response.error(res, "User not found", 404);
+    }
+
+    if (user.is_verified) {
+      return response.error(res, "User is already verified. Cannot resend registration OTP.", 400);
+    }
+
+    // Generate and send OTP for unverified user
     await createOTP(email);
     
     return response.success(
