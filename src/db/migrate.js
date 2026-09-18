@@ -16,6 +16,32 @@ export async function runMigrations() {
   });
   await client.connect();
   
+  // Pastikan tabel tracking migrasi ada
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS "__applied_migrations" (
+      id serial PRIMARY KEY,
+      name text UNIQUE NOT NULL,
+      applied_at timestamp DEFAULT now() NOT NULL
+    );
+  `);
+
+  // Jika tabel User sudah ada dari inisialisasi awal, tandai 0000_neat_mandrill.sql sudah diaplikasikan
+  const userTableCheck = await client.query(`
+    SELECT table_name FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'User';
+  `);
+  if (userTableCheck.rows.length > 0) {
+    await client.query(`
+      INSERT INTO "__applied_migrations" (name) 
+      VALUES ('0000_neat_mandrill.sql') 
+      ON CONFLICT (name) DO NOTHING;
+    `);
+  }
+
+  // Ambil daftar migrasi yang sudah pernah dijalankan
+  const appliedRes = await client.query(`SELECT name FROM "__applied_migrations";`);
+  const appliedFiles = new Set(appliedRes.rows.map(r => r.name));
+
   const migrationsDir = path.resolve(__dirname, "../../drizzle");
   
   // Get all SQL files in the migrations directory, sorted alphabetically
@@ -24,9 +50,13 @@ export async function runMigrations() {
     .sort();
     
   for (const file of files) {
-    const filePath = path.join(migrationsDir, file);
+    if (appliedFiles.has(file)) {
+      console.log(` Skipping already applied migration: ${file}`);
+      continue;
+    }
+
     console.log(` Applying migration: ${file}`);
-    const sqlText = fs.readFileSync(filePath, "utf8");
+    const sqlText = fs.readFileSync(filePath(migrationsDir, file), "utf8");
     const statements = sqlText.split("--> statement-breakpoint");
     
     for (let statement of statements) {
@@ -35,10 +65,17 @@ export async function runMigrations() {
         await client.query(statement);
       }
     }
+
+    await client.query(`INSERT INTO "__applied_migrations" (name) VALUES ($1);`, [file]);
+    console.log(` Migration ${file} applied and recorded.`);
   }
   
   console.log(" All migrations applied successfully!");
   await client.end();
+}
+
+function filePath(dir, file) {
+  return path.join(dir, file);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

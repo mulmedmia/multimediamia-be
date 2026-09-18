@@ -6,6 +6,8 @@ export const verificationStatusEnum = pgEnum("VerificationStatus", ["VERIFIED", 
 export const teamTypeEnum = pgEnum("TeamType", ["INDIVIDUAL", "GROUP"]);
 export const submissionStatusEnum = pgEnum("SubmissionStatus", ["PENDING", "APPROVED", "REJECTED", "REVISION"]);
 export const linkTypeEnum = pgEnum("LinkType", ["GITHUB", "YOUTUBE", "OTHER"]);
+export const missionStatusEnum = pgEnum("MissionStatus", ["ACTIVE", "EXPIRED", "DRAFT"]);
+export const missionSubmissionStatusEnum = pgEnum("MissionSubmissionStatus", ["PENDING", "APPROVED", "REJECTED"]);
 
 // User Model Table
 export const User = pgTable("User", {
@@ -17,6 +19,7 @@ export const User = pgTable("User", {
   role: roleEnum("role").default("USER").notNull(),
   is_verified: boolean("is_verified").default(false).notNull(),
   points: integer("points").default(0).notNull(),
+  xp: integer("xp").default(0).notNull(),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -124,6 +127,34 @@ export const Juri = pgTable("Juri", {
   category_id: text("category_id")
     .notNull()
     .references(() => Category.category_id, { onDelete: "cascade" }),
+// Mission Model Table
+export const Mission = pgTable("Mission", {
+  mission_id: text("mission_id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  deadline: timestamp("deadline").notNull(),
+  min_xp: integer("min_xp").notNull(),
+  max_xp: integer("max_xp").notNull(),
+  min_diamond: integer("min_diamond").notNull(),
+  max_diamond: integer("max_diamond").notNull(),
+  google_docs_url: text("google_docs_url").notNull(),
+  status: missionStatusEnum("status").default("ACTIVE").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// MissionSubmission Model Table
+export const MissionSubmission = pgTable("MissionSubmission", {
+  submission_id: text("submission_id").primaryKey(),
+  mission_id: text("mission_id").notNull().references(() => Mission.mission_id, { onDelete: "cascade" }),
+  user_id: text("user_id").notNull().references(() => User.users_id, { onDelete: "cascade" }),
+  submission_url: text("submission_url").notNull(),
+  notes: text("notes"),
+  status: missionSubmissionStatusEnum("status").default("PENDING").notNull(),
+  awarded_xp: integer("awarded_xp"),
+  awarded_diamond: integer("awarded_diamond"),
+  admin_feedback: text("admin_feedback"),
+  reviewed_at: timestamp("reviewed_at"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
