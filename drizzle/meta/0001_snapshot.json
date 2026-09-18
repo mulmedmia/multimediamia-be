@@ -1,5 +1,5 @@
 {
-  "id": "2568e0cc-77a7-4ea3-8a1a-a033e54d65b0",
+  "id": "46386e34-38f7-4147-a100-7afb14fbf91d",
   "prevId": "cb346824-4302-4218-8e49-ff52c88c015e",
   "version": "7",
   "dialect": "postgresql",
@@ -132,6 +132,12 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.Juri": {
+      "name": "Juri",
+      "schema": "",
+      "columns": {
+        "juri_id": {
+          "name": "juri_id",
     "public.Mission": {
       "name": "Mission",
       "schema": "",
@@ -142,12 +148,16 @@
           "primaryKey": true,
           "notNull": true
         },
+        "users_id": {
+          "name": "users_id",
         "title": {
           "name": "title",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
+        "category_id": {
+          "name": "category_id",
         "description": {
           "name": "description",
           "type": "text",
@@ -304,6 +314,15 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "Juri_users_id_User_users_id_fk": {
+          "name": "Juri_users_id_User_users_id_fk",
+          "tableFrom": "Juri",
+          "tableTo": "User",
+          "columnsFrom": [
+            "users_id"
+          ],
+          "columnsTo": [
+            "users_id"
         "MissionSubmission_mission_id_Mission_mission_id_fk": {
           "name": "MissionSubmission_mission_id_Mission_mission_id_fk",
           "tableFrom": "MissionSubmission",
@@ -317,6 +336,15 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
+        "Juri_category_id_Category_category_id_fk": {
+          "name": "Juri_category_id_Category_category_id_fk",
+          "tableFrom": "Juri",
+          "tableTo": "Category",
+          "columnsFrom": [
+            "category_id"
+          ],
+          "columnsTo": [
+            "category_id"
         "MissionSubmission_user_id_User_users_id_fk": {
           "name": "MissionSubmission_user_id_User_users_id_fk",
           "tableFrom": "MissionSubmission",
@@ -332,6 +360,15 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "Juri_users_id_unique": {
+          "name": "Juri_users_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "users_id"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

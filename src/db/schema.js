@@ -117,6 +117,16 @@ export const Redemption = pgTable("Redemption", {
   created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Juri Model Table
+export const Juri = pgTable("Juri", {
+  juri_id: text("juri_id").primaryKey(),
+  users_id: text("users_id")
+    .notNull()
+    .unique()
+    .references(() => User.users_id, { onDelete: "cascade" }),
+  category_id: text("category_id")
+    .notNull()
+    .references(() => Category.category_id, { onDelete: "cascade" }),
 // Mission Model Table
 export const Mission = pgTable("Mission", {
   mission_id: text("mission_id").primaryKey(),

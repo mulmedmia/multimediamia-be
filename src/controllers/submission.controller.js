@@ -12,8 +12,21 @@ import {
   createSubmissionSchema,
   updateSubmissionSchema,
   updateSubmissionStatusSchema,
+  updateSubmissionScoreFeedbackSchema,
 } from "../models/submission.model.js";
 import { updateSubmissionScoreFeedback } from "../services/submission.service.js";
+import { db } from "../db/index.js";
+import * as schema from "../db/schema.js";
+import { eq } from "drizzle-orm";
+
+const getJuriCategory = async (userId) => {
+  const [juri] = await db
+    .select()
+    .from(schema.Juri)
+    .where(eq(schema.Juri.users_id, userId))
+    .limit(1);
+  return juri ? juri.category_id : null;
+};
 
 // Get all submissions (admin/mentor)
 export const getSubmissions = async (req, res) => {
@@ -123,12 +136,29 @@ export const createNewSubmission = async (req, res) => {
   }
 };
 
-// Update submission (check ownership)
+// Update submission (check ownership / JURI category match)
 export const updateExistingSubmission = async (req, res) => {
   try {
     const submissionId = req.params.id;
     const submissionData = req.body;
-    const userId = req.user.userId; // Fix: gunakan field yang benar dari JWT
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
+    if (userRole === "JURI") {
+      const submission = await getSubmissionById(submissionId);
+      const assignedCategoryId = await getJuriCategory(userId);
+      if (
+        !assignedCategoryId ||
+        submission.category_id !== assignedCategoryId
+      ) {
+        return response.error(
+          res,
+          "Forbidden: You can only edit submissions in your assigned category",
+          403
+        );
+      }
+    }
 
     // Validate data
     const validation = updateSubmissionSchema.safeParse(submissionData);
@@ -139,7 +169,8 @@ export const updateExistingSubmission = async (req, res) => {
     const updatedSubmission = await updateSubmission(
       submissionId,
       validation.data,
-      userId
+      userId,
+      userRole
     );
     return response.success(
       res,
@@ -218,16 +249,40 @@ export const updateSubmissionStatusById = async (req, res) => {
   }
 };
 
-// Update submission score and feedback (admin only)
+// Update submission score and feedback (admin/juri)
 export const updateSubmissionScoreFeedbackById = async (req, res) => {
   try {
     const submissionId = req.params.id;
-    const { score, feedback } = req.body;
-    const updated = await updateSubmissionScoreFeedback(submissionId, { score, feedback });
+
+    // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
+    if (req.user && req.user.role === "JURI") {
+      const submission = await getSubmissionById(submissionId);
+      const assignedCategoryId = await getJuriCategory(req.user.userId);
+      if (
+        !assignedCategoryId ||
+        submission.category_id !== assignedCategoryId
+      ) {
+        return response.error(
+          res,
+          "Forbidden: You can only score submissions in your assigned category",
+          403
+        );
+      }
+    }
+
+    const validation = updateSubmissionScoreFeedbackSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const updated = await updateSubmissionScoreFeedback(submissionId, validation.data);
     return response.success(res, updated, "Score & feedback updated successfully");
   } catch (error) {
     if (error.message === "Submission not found") {
       return response.error(res, error.message, 404);
+    }
+    if (error.message === "Score must be between 0 and 100") {
+      return response.error(res, error.message, 400);
     }
     return response.error(res, "Failed to update score/feedback", 500, error.message);
   }

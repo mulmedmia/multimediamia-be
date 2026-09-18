@@ -292,7 +292,7 @@ export const createSubmission = async (submissionData, userId) => {
 };
 
 // Update submission
-export const updateSubmission = async (id, submissionData, userId) => {
+export const updateSubmission = async (id, submissionData, userId, userRole = "USER") => {
   const { links, ...submissionFields } = submissionData;
 
   // Check if submission exists
@@ -306,8 +306,8 @@ export const updateSubmission = async (id, submissionData, userId) => {
     throw new Error("Submission not found");
   }
 
-  // Check ownership
-  if (submission.user_id !== userId) {
+  // Check ownership unless requester is ADMIN or JURI
+  if (submission.user_id !== userId && userRole !== "ADMIN" && userRole !== "JURI") {
     throw new Error("Unauthorized to update this submission");
   }
 
@@ -401,8 +401,17 @@ export const updateSubmissionScoreFeedback = async (id, data) => {
     throw new Error("Submission not found");
   }
 
+  if (data.score !== undefined && data.score !== null) {
+    const numericScore = Number(data.score);
+    if (isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
+      throw new Error("Score must be between 0 and 100");
+    }
+  }
+
   const updateFields = { updated_at: new Date() };
-  if (data.score !== undefined) updateFields.score = Number(data.score);
+  if (data.score !== undefined) {
+    updateFields.score = data.score !== null ? Number(data.score) : null;
+  }
   if (data.feedback !== undefined) updateFields.feedback = data.feedback;
 
   await db
