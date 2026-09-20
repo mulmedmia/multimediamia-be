@@ -12,10 +12,19 @@ export const createSubmissionSchema = z.object({
   links: z
     .array(
       z.object({
-        link_type: z.enum(["GITHUB", "YOUTUBE", "OTHER"]),
+        link_type: z.enum([
+          "GITHUB",
+          "GITHUB_SECONDARY",
+          "YOUTUBE",
+          "DEPLOYMENT",
+          "PROPOSAL",
+          "FIGMA",
+          "FIGMA_PROTOTYPE",
+          "OTHER",
+        ]),
         url: z.string().url("Valid URL is required"),
         description: z.string().optional(),
-      })
+      }),
     )
     .min(1, "At least one link is required"),
 });
@@ -35,10 +44,19 @@ export const updateSubmissionSchema = z.object({
   links: z
     .array(
       z.object({
-        link_type: z.enum(["GITHUB", "YOUTUBE", "OTHER"]),
+        link_type: z.enum([
+          "GITHUB",
+          "GITHUB_SECONDARY",
+          "YOUTUBE",
+          "DEPLOYMENT",
+          "PROPOSAL",
+          "FIGMA",
+          "FIGMA_PROTOTYPE",
+          "OTHER",
+        ]),
         url: z.string().url("Valid URL is required"),
         description: z.string().optional(),
-      })
+      }),
     )
     .optional(),
 });
@@ -48,3 +66,15 @@ export const updateSubmissionStatusSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "REVISION"]),
   is_verified: z.boolean().optional(),
 });
+
+// Schema for admin/juri to update submission score and feedback
+export const updateSubmissionScoreFeedbackSchema = z.object({
+  score: z.coerce
+    .number({ invalid_type_error: "Score must be a number" })
+    .min(0, "Score must be at least 0")
+    .max(100, "Score must not exceed 100")
+    .nullable()
+    .optional(),
+  feedback: z.string().optional(),
+});
+

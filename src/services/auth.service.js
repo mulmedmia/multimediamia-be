@@ -24,22 +24,22 @@ const findUserByNim = async (nim) => {
     .limit(1);
   return user || null;
 };
-
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
-
+  const newUserId = generateCuid();
   const [user] = await db
     .insert(schema.User)
     .values({
-      users_id: generateCuid(),
+      users_id: newUserId,
       name: userData.name,
       email: userData.email,
       nim: userData.nim || null,
       password: hashedPassword,
       role: "USER",
       is_verified: false,
-      points: 0,
+      created_by: newUserId,
+      updated_by: newUserId,
     })
     .returning();
 
@@ -52,7 +52,7 @@ const validatePassword = async (plainPassword, hashedPassword) => {
 
 // Auth services
 export const registerUser = async (userData) => {
-  // Check if user already exists by email
+  // Check if user already exists by email (block registration for any existing email)
   const existingUserByEmail = await findUserByEmail(userData.email);
   if (existingUserByEmail) {
     throw new Error("Email already registered");
@@ -88,7 +88,11 @@ export const verifyUserOtp = async (email, otp) => {
   // Update user verification status
   const [updatedUser] = await db
     .update(schema.User)
-    .set({ is_verified: true })
+    .set({
+      is_verified: true,
+      updated_by: user.users_id,
+      updated_at: new Date(),
+    })
     .where(eq(schema.User.email, email))
     .returning();
 
@@ -104,15 +108,15 @@ export const loginUser = async (email, password) => {
     throw new Error("User not found");
   }
 
-  // Check if user is verified
-  if (!user.is_verified) {
-    throw new Error("Please verify your email first");
-  }
-
-  // Validate password
+  // Validate password first (proves credential ownership)
   const isPasswordValid = await validatePassword(password, user.password);
   if (!isPasswordValid) {
     throw new Error("Invalid password");
+  }
+
+  // Check if user is verified AFTER password is confirmed
+  if (!user.is_verified) {
+    throw new Error("Please verify your email first");
   }
 
   // Generate JWT token
@@ -142,10 +146,15 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-  // Update user password
+  // Update user password and set is_verified to true (verifying OTP proves email ownership)
   const [updatedUser] = await db
     .update(schema.User)
-    .set({ password: hashedPassword })
+    .set({
+      password: hashedPassword,
+      is_verified: true,
+      updated_by: user.users_id,
+      updated_at: new Date(),
+    })
     .where(eq(schema.User.email, email))
     .returning();
 

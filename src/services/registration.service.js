@@ -1,11 +1,15 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, ilike } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
+
+const creatorUser = alias(schema.User, "creatorUser");
+const updaterUser = alias(schema.User, "updaterUser");
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
-  const { page = 1, limit = 10, category_id, user_id, is_verified } = filters;
+  const { page = 1, limit = 10, category_id, user_id, is_verified, search } = filters;
   const skip = (page - 1) * Number(limit);
 
   const conditions = [];
@@ -19,17 +23,36 @@ export const getAllRegistrations = async (filters = {}) => {
   }
   
   if (is_verified !== undefined) {
-    conditions.push(eq(schema.Registration.is_verified, is_verified === 'true'));
+    conditions.push(eq(schema.Registration.is_verified, is_verified === "true" || is_verified === true));
+  }
+
+  if (search) {
+    const searchPattern = `%${search}%`;
+    conditions.push(
+      or(
+        ilike(schema.User.name, searchPattern),
+        ilike(schema.User.email, searchPattern),
+        ilike(schema.Registration.team_name, searchPattern)
+      )
+    );
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [rows, [countResult]] = await Promise.all([
     db
-      .select()
+      .select({
+        Registration: schema.Registration,
+        User: schema.User,
+        Category: schema.Category,
+        creator: { name: creatorUser.name, email: creatorUser.email },
+        updater: { name: updaterUser.name, email: updaterUser.email },
+      })
       .from(schema.Registration)
       .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
       .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
+      .leftJoin(creatorUser, eq(schema.Registration.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.Registration.created_at))
       .limit(Number(limit))
@@ -37,6 +60,8 @@ export const getAllRegistrations = async (filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Registration)
+      .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(whereClause),
   ]);
 
@@ -45,11 +70,20 @@ export const getAllRegistrations = async (filters = {}) => {
     user: row.User ? { name: row.User.name, email: row.User.email } : null,
     category: row.Category
       ? {
-          category_name: row.Category.category_name,
-          team_type: row.Category.team_type,
+          category_id: row.Category.category_id,
           name: row.Category.name,
+          slug: row.Category.slug,
+          category_name: row.Category.name,
+          team_type: row.Category.team_type,
+          deadline: row.Category.deadline,
+          preliminary_deadline: row.Category.preliminary_deadline,
+          final_deadline: row.Category.final_deadline,
+          is_submission_open: row.Category.is_submission_open,
+          allow_revision: row.Category.allow_revision,
         }
       : null,
+    created_by_name: row.creator?.name || row.Registration.created_by || "-",
+    updated_by_name: row.updater?.name || row.Registration.updated_by || "-",
   }));
 
   const total = Number(countResult?.count || 0);
@@ -68,10 +102,18 @@ export const getAllRegistrations = async (filters = {}) => {
 // Get registration by ID
 export const getRegistrationById = async (id) => {
   const [row] = await db
-    .select()
+    .select({
+      Registration: schema.Registration,
+      User: schema.User,
+      Category: schema.Category,
+      creator: { name: creatorUser.name, email: creatorUser.email },
+      updater: { name: updaterUser.name, email: updaterUser.email },
+    })
     .from(schema.Registration)
     .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
     .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
+    .leftJoin(creatorUser, eq(schema.Registration.created_by, creatorUser.users_id))
+    .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
     .where(eq(schema.Registration.registration_id, id))
     .limit(1);
 
@@ -84,11 +126,20 @@ export const getRegistrationById = async (id) => {
     user: row.User ? { name: row.User.name, email: row.User.email } : null,
     category: row.Category
       ? {
-          category_name: row.Category.category_name,
-          team_type: row.Category.team_type,
+          category_id: row.Category.category_id,
           name: row.Category.name,
+          slug: row.Category.slug,
+          category_name: row.Category.name,
+          team_type: row.Category.team_type,
+          deadline: row.Category.deadline,
+          preliminary_deadline: row.Category.preliminary_deadline,
+          final_deadline: row.Category.final_deadline,
+          is_submission_open: row.Category.is_submission_open,
+          allow_revision: row.Category.allow_revision,
         }
       : null,
+    created_by_name: row.creator?.name || row.Registration.created_by || "-",
+    updated_by_name: row.updater?.name || row.Registration.updated_by || "-",
   };
 };
 
@@ -136,13 +187,15 @@ export const createRegistration = async (registrationData) => {
     team_members: registrationData.team_members || null,
     is_verified: registrationData.is_verified || false,
     feedback: registrationData.feedback || null,
+    created_by: registrationData.user_id,
+    updated_by: registrationData.user_id,
   });
 
   return await getRegistrationById(newId);
 };
 
 // Update registration
-export const updateRegistration = async (id, registrationData) => {
+export const updateRegistration = async (id, registrationData, updatedBy = null) => {
   // Check if registration exists
   const [registration] = await db
     .select()
@@ -165,12 +218,17 @@ export const updateRegistration = async (id, registrationData) => {
     throw new Error("Team name is required for group registrations");
   }
 
+  const updatePayload = {
+    ...registrationData,
+    updated_at: new Date(),
+  };
+  if (updatedBy) {
+    updatePayload.updated_by = updatedBy;
+  }
+
   await db
     .update(schema.Registration)
-    .set({
-      ...registrationData,
-      updated_at: new Date(),
-    })
+    .set(updatePayload)
     .where(eq(schema.Registration.registration_id, id));
 
   return await getRegistrationById(id);

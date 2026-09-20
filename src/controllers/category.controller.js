@@ -4,6 +4,7 @@ import {
   createCategory,
   updateCategory,
   deleteCategory,
+  toggleCategorySubmission,
 } from "../services/category.service.js";
 import { response } from "../utils/response.js";
 import {
@@ -11,6 +12,8 @@ import {
   updateCategorySchema,
 } from "../models/category.model.js";
 import multer from "multer";
+import path from "path";
+import sharp from "sharp";
 import imagekit from "../lib/imagekit.js";
 
 // Configure multer for temporary storage
@@ -27,16 +30,31 @@ export const upload = multer({
   },
 });
 
-// Handle image upload to ImageKit
+// Handle image upload to ImageKit with automatic AVIF conversion
 const uploadToImageKit = async (file) => {
+  let fileBuffer = file.buffer;
+  let fileName = `${Date.now()}_${file.originalname}`;
+
+  try {
+    // Convert image buffer (PNG, JPG, WEBP, etc.) to AVIF
+    const avifBuffer = await sharp(file.buffer)
+      .avif({ quality: 80, effort: 4 })
+      .toBuffer();
+
+    fileBuffer = avifBuffer;
+    const baseName = path.parse(file.originalname).name || "banner";
+    fileName = `${Date.now()}_${baseName}.avif`;
+  } catch (conversionError) {
+    console.warn("Failed to convert image to AVIF, uploading original buffer:", conversionError.message);
+  }
+
   // Convert file buffer to base64
-  const fileBuffer = file.buffer;
   const base64Image = fileBuffer.toString("base64");
 
   // Upload to ImageKit
   const result = await imagekit.upload({
     file: base64Image,
-    fileName: `${Date.now()}_${file.originalname}`,
+    fileName,
     folder: "/category-images",
   });
 
@@ -107,16 +125,45 @@ export const createNewCategory = async (req, res) => {
     }
 
     // Convert string dates to proper datetime formats if needed
-    if (typeof categoryData.startDate === "string") {
-      categoryData.startDate = new Date(categoryData.startDate).toISOString();
-    }
-
-    if (typeof categoryData.endDate === "string") {
-      categoryData.endDate = new Date(categoryData.endDate).toISOString();
-    }
-
-    if (typeof categoryData.deadline === "string") {
+    if (typeof categoryData.deadline === "string" && categoryData.deadline) {
       categoryData.deadline = new Date(categoryData.deadline).toISOString();
+    }
+
+    if (typeof categoryData.preliminary_deadline === "string" && categoryData.preliminary_deadline) {
+      categoryData.preliminary_deadline = new Date(categoryData.preliminary_deadline).toISOString();
+    }
+
+    if (typeof categoryData.final_deadline === "string" && categoryData.final_deadline) {
+      categoryData.final_deadline = new Date(categoryData.final_deadline).toISOString();
+    }
+
+    if (categoryData.batch_1_start) {
+      categoryData.batch_1_start = new Date(categoryData.batch_1_start).toISOString();
+    } else if (categoryData.batch_1_start === "") {
+      categoryData.batch_1_start = null;
+    }
+
+    if (categoryData.batch_1_end) {
+      categoryData.batch_1_end = new Date(categoryData.batch_1_end).toISOString();
+    } else if (categoryData.batch_1_end === "") {
+      categoryData.batch_1_end = null;
+    }
+
+    if (categoryData.batch_2_start) {
+      categoryData.batch_2_start = new Date(categoryData.batch_2_start).toISOString();
+    } else if (categoryData.batch_2_start === "") {
+      categoryData.batch_2_start = null;
+    }
+
+    if (categoryData.batch_2_end) {
+      categoryData.batch_2_end = new Date(categoryData.batch_2_end).toISOString();
+    } else if (categoryData.batch_2_end === "") {
+      categoryData.batch_2_end = null;
+    }
+
+    // Fallback if category_name was sent instead of slug
+    if (!categoryData.slug && categoryData.category_name) {
+      categoryData.slug = categoryData.category_name;
     }
 
     // Validate input data
@@ -179,16 +226,45 @@ export const updateExistingCategory = async (req, res) => {
     }
 
     // Convert string dates to proper datetime formats if provided
-    if (categoryData.startDate) {
-      categoryData.startDate = new Date(categoryData.startDate).toISOString();
-    }
-
-    if (categoryData.endDate) {
-      categoryData.endDate = new Date(categoryData.endDate).toISOString();
-    }
-
     if (categoryData.deadline) {
       categoryData.deadline = new Date(categoryData.deadline).toISOString();
+    }
+
+    if (categoryData.preliminary_deadline) {
+      categoryData.preliminary_deadline = new Date(categoryData.preliminary_deadline).toISOString();
+    }
+
+    if (categoryData.final_deadline) {
+      categoryData.final_deadline = new Date(categoryData.final_deadline).toISOString();
+    }
+
+    if (categoryData.batch_1_start) {
+      categoryData.batch_1_start = new Date(categoryData.batch_1_start).toISOString();
+    } else if (categoryData.batch_1_start === "") {
+      categoryData.batch_1_start = null;
+    }
+
+    if (categoryData.batch_1_end) {
+      categoryData.batch_1_end = new Date(categoryData.batch_1_end).toISOString();
+    } else if (categoryData.batch_1_end === "") {
+      categoryData.batch_1_end = null;
+    }
+
+    if (categoryData.batch_2_start) {
+      categoryData.batch_2_start = new Date(categoryData.batch_2_start).toISOString();
+    } else if (categoryData.batch_2_start === "") {
+      categoryData.batch_2_start = null;
+    }
+
+    if (categoryData.batch_2_end) {
+      categoryData.batch_2_end = new Date(categoryData.batch_2_end).toISOString();
+    } else if (categoryData.batch_2_end === "") {
+      categoryData.batch_2_end = null;
+    }
+
+    // Fallback if category_name was sent instead of slug
+    if (!categoryData.slug && categoryData.category_name) {
+      categoryData.slug = categoryData.category_name;
     }
 
     // Validate the category data
@@ -204,7 +280,7 @@ export const updateExistingCategory = async (req, res) => {
     }
 
     // Update category with the combined data
-    const updatedCategory = await updateCategory(categoryId, categoryData);
+    const updatedCategory = await updateCategory(categoryId, categoryData, req.user?.userId);
 
     return response.success(
       res,
@@ -216,6 +292,29 @@ export const updateExistingCategory = async (req, res) => {
       return response.error(res, error.message, 404);
     }
     return response.error(res, "Failed to update category", 500, error.message);
+  }
+};
+
+// Toggle submission open/close (admin only)
+export const toggleSubmissionStatus = async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const { is_submission_open, allow_revision } = req.body || {};
+    const updatedCategory = await toggleCategorySubmission(categoryId, {
+      is_submission_open,
+      allow_revision,
+    }, req.user?.userId);
+
+    return response.success(
+      res,
+      updatedCategory,
+      `Pengumpulan karya berhasil ${updatedCategory.is_submission_open ? "dibuka" : "ditutup"}`
+    );
+  } catch (error) {
+    if (error.message === "Category not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Gagal mengubah status pengumpulan", 500, error.message);
   }
 };
 

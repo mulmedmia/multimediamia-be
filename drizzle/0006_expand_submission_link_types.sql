@@ -1,0 +1,5 @@
+ALTER TYPE "LinkType" ADD VALUE IF NOT EXISTS 'PROPOSAL';
+--> statement-breakpoint
+ALTER TYPE "LinkType" ADD VALUE IF NOT EXISTS 'DEPLOYMENT';
+--> statement-breakpoint
+ALTER TYPE "LinkType" ADD VALUE IF NOT EXISTS 'GITHUB_SECONDARY';

@@ -30,7 +30,7 @@ export const updateProfile = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const updatedUser = await updateUserProfile(userId, validation.data);
+    const updatedUser = await updateUserProfile(userId, validation.data, userId);
 
     // If email was changed, send OTP for verification
     let message = "Profile updated successfully";

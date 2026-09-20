@@ -2,6 +2,10 @@ import bcrypt from "bcrypt";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+
+const creatorUser = alias(schema.User, "creatorUser");
+const updaterUser = alias(schema.User, "updaterUser");
 
 // Get user profile by ID
 export const getUserProfile = async (userId) => {
@@ -12,7 +16,6 @@ export const getUserProfile = async (userId) => {
       nim: schema.User.nim,
       email: schema.User.email,
       role: schema.User.role,
-      points: schema.User.points,
       is_verified: schema.User.is_verified,
       created_at: schema.User.created_at,
       updated_at: schema.User.updated_at,
@@ -25,11 +28,36 @@ export const getUserProfile = async (userId) => {
     throw new Error("User not found");
   }
 
-  return user;
+  let category = null;
+  if (user.role === "JURI") {
+    const [juriCategory] = await db
+      .select({
+        category_id: schema.Category.category_id,
+        category_name: schema.Category.name,
+        name: schema.Category.name,
+        slug: schema.Category.slug,
+      })
+      .from(schema.Juri)
+      .innerJoin(
+        schema.Category,
+        eq(schema.Juri.category_id, schema.Category.category_id)
+      )
+      .where(eq(schema.Juri.users_id, userId))
+      .limit(1);
+
+    if (juriCategory) {
+      category = juriCategory;
+    }
+  }
+
+  return {
+    ...user,
+    category,
+  };
 };
 
 // Update user profile
-export const updateUserProfile = async (userId, updateData) => {
+export const updateUserProfile = async (userId, updateData, actingUserId = null) => {
   const { current_password, new_password, email, nim, ...otherData } = updateData;
 
   // Get current user data
@@ -68,7 +96,11 @@ export const updateUserProfile = async (userId, updateData) => {
   }
 
   // Prepare update data
-  const dataToUpdate = { ...otherData, updated_at: new Date() };
+  const dataToUpdate = {
+    ...otherData,
+    updated_by: actingUserId || userId,
+    updated_at: new Date(),
+  };
   
   if (email) {
     dataToUpdate.email = email;
@@ -144,12 +176,17 @@ export const getAllUsers = async (filters = {}) => {
         nim: schema.User.nim,
         email: schema.User.email,
         role: schema.User.role,
-        points: schema.User.points,
         is_verified: schema.User.is_verified,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
+        created_by: schema.User.created_by,
+        created_by_name: creatorUser.name,
+        updated_by: schema.User.updated_by,
+        updated_by_name: updaterUser.name,
       })
       .from(schema.User)
+      .leftJoin(creatorUser, eq(schema.User.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.User.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.User.created_at))
       .limit(Number(limit))
@@ -160,10 +197,16 @@ export const getAllUsers = async (filters = {}) => {
       .where(whereClause),
   ]);
 
+  const formattedUsers = users.map((u) => ({
+    ...u,
+    created_by_name: u.created_by_name || u.created_by || "-",
+    updated_by_name: u.updated_by_name || u.updated_by || "-",
+  }));
+
   const total = Number(countResult?.count || 0);
 
   return {
-    users,
+    users: formattedUsers,
     meta: {
       total,
       page: Number(page),

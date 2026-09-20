@@ -1,0 +1,1 @@
+ALTER TABLE "product" ADD COLUMN IF NOT EXISTS "reward_xp" integer DEFAULT 0 NOT NULL;
