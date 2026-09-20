@@ -20,12 +20,22 @@ export const createOTP = async (email) => {
     // Delete any existing OTPs for this email
     await db.delete(schema.OTP).where(eq(schema.OTP.email, email));
     
+    // Find user by email if exists, otherwise fallback to email
+    const [existingUser] = await db
+      .select({ id: schema.User.users_id })
+      .from(schema.User)
+      .where(eq(schema.User.email, email))
+      .limit(1);
+    const actorId = existingUser ? existingUser.id : email;
+
     // Create new OTP
     await db.insert(schema.OTP).values({
       id: generateCuid(),
       email,
       code: otp,
       expires_at: expiresAt,
+      created_by: actorId,
+      updated_by: actorId,
     });
     
     // Log OTP in terminal console for dev testing only (disabled in production)

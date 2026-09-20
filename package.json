@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "postinstall": "drizzle-kit generate",
+    "build": "node src/db/migrate.js",
     "vercel-build": "drizzle-kit generate && node src/db/migrate.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node src/db/seed.js",
+    "seed:categories": "node src/db/seed-categories.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node src/db/migrate.js",
     "db:push": "drizzle-kit push",
@@ -35,6 +37,7 @@
     "multer": "^2.0.1",
     "nodemailer": "^7.0.3",
     "pg": "^8.22.0",
+    "sharp": "^0.35.4",
     "zod": "^3.25.23"
   },
   "devDependencies": {

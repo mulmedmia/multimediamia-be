@@ -2,16 +2,19 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import morgan from "morgan";
-import rateLimit from "express-rate-limit";
 import router from "./src/routes/index.routes.js";
 import {
   errorHandler,
   notFoundHandler,
 } from "./src/middleware/errorHandler.js";
+import { generalLimiter } from "./src/middleware/rateLimiter.js";
 
 dotenv.config();
 
 const app = express();
+
+// Trust reverse proxy (Render, Vercel, Cloudflare) to accurately capture real client IP
+app.set("trust proxy", 1);
 
 app.use(
   cors({
@@ -21,13 +24,17 @@ app.use(
   })
 );
 
-const limiter = rateLimit({
-  windowMs: 2 * 60 * 1000,
-  max: 40,
-  message: "Too many requests from this IP, please try again later.",
+// Lightweight Health Check endpoint (digunakan oleh UptimeRobot/Cron untuk keep-alive Render)
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
 });
 
-app.use(limiter);
+// Terapkan rate limiter umum
+app.use(generalLimiter);
 
 app.use(morgan("dev"));
 app.use(express.json());

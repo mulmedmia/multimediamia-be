@@ -13,7 +13,8 @@ import { submitMissionSchema } from "../models/mission.model.js";
 export const getUserMissions = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const missions = await getActiveMissionsForUser(userId);
+    const { category_id } = req.query;
+    const missions = await getActiveMissionsForUser(userId, category_id);
 
     return response.success(
       res,

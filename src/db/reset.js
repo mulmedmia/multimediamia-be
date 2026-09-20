@@ -36,13 +36,16 @@ async function resetAndMigrate() {
   const saltRounds = 10;
   const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
 
+  const adminId = generateCuid();
   await db.insert(schema.User).values({
-    users_id: generateCuid(),
+    users_id: adminId,
     name: adminName,
     email: adminEmail,
     password: hashedPassword,
     role: "ADMIN",
     is_verified: true,
+    created_by: adminId,
+    updated_by: adminId,
   });
   console.log(` Admin user seeded: ${adminEmail}`);
   console.log(" Database reset completed successfully!");

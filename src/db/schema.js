@@ -5,7 +5,16 @@ export const roleEnum = pgEnum("Role", ["USER", "ADMIN", "JURI"]);
 export const verificationStatusEnum = pgEnum("VerificationStatus", ["VERIFIED", "NOT_VERIFIED"]);
 export const teamTypeEnum = pgEnum("TeamType", ["INDIVIDUAL", "GROUP"]);
 export const submissionStatusEnum = pgEnum("SubmissionStatus", ["PENDING", "APPROVED", "REJECTED", "REVISION"]);
-export const linkTypeEnum = pgEnum("LinkType", ["GITHUB", "YOUTUBE", "OTHER"]);
+export const linkTypeEnum = pgEnum("LinkType", [
+  "GITHUB",
+  "GITHUB_SECONDARY",
+  "YOUTUBE",
+  "DEPLOYMENT",
+  "PROPOSAL",
+  "FIGMA",
+  "FIGMA_PROTOTYPE",
+  "OTHER",
+]);
 export const missionStatusEnum = pgEnum("MissionStatus", ["ACTIVE", "EXPIRED", "DRAFT"]);
 export const missionSubmissionStatusEnum = pgEnum("MissionSubmissionStatus", ["PENDING", "APPROVED", "REJECTED"]);
 
@@ -18,8 +27,8 @@ export const User = pgTable("User", {
   password: text("password").notNull(),
   role: roleEnum("role").default("USER").notNull(),
   is_verified: boolean("is_verified").default(false).notNull(),
-  points: integer("points").default(0).notNull(),
-  xp: integer("xp").default(0).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -27,19 +36,26 @@ export const User = pgTable("User", {
 // Category Model Table
 export const Category = pgTable("Category", {
   category_id: text("category_id").primaryKey(),
-  category_name: text("category_name").notNull(),
+  slug: text("slug").notNull(),
   user_id: text("user_id").notNull().references(() => User.users_id),
   name: text("name").notNull(),
-  startDate: timestamp("startDate").notNull(),
-  endDate: timestamp("endDate").notNull(),
   organizer: text("organizer").notNull(),
-  title: text("title").notNull(),
   description: text("description").notNull(),
-  deadline: timestamp("deadline").notNull(),
+  deadline: timestamp("deadline"),
+  preliminary_deadline: timestamp("preliminary_deadline"),
+  final_deadline: timestamp("final_deadline"),
+  batch_1_start: timestamp("batch_1_start"),
+  batch_1_end: timestamp("batch_1_end"),
+  batch_2_start: timestamp("batch_2_start"),
+  batch_2_end: timestamp("batch_2_end"),
+  is_submission_open: boolean("is_submission_open").default(true).notNull(),
+  allow_revision: boolean("allow_revision").default(false).notNull(),
   image: text("image").notNull(),
   file_url: text("file_url"),
   team_type: teamTypeEnum("team_type").default("INDIVIDUAL").notNull(),
   status: verificationStatusEnum("status").notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -54,6 +70,10 @@ export const Registration = pgTable("Registration", {
   team_members: text("team_members"),
   is_verified: boolean("is_verified").notNull(),
   feedback: text("feedback"),
+  diamond: integer("diamond").default(0).notNull(),
+  xp: integer("xp").default(0).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -71,6 +91,8 @@ export const Submission = pgTable("Submission", {
   feedback: text("feedback"),
   status: submissionStatusEnum("status").default("PENDING").notNull(),
   is_verified: boolean("is_verified").default(false).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -82,6 +104,8 @@ export const SubmissionLink = pgTable("SubmissionLink", {
   link_type: linkTypeEnum("link_type").notNull(),
   url: text("url").notNull(),
   description: text("description"),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -92,18 +116,27 @@ export const OTP = pgTable("OTP", {
   email: text("email").notNull(),
   code: text("code").notNull(),
   expires_at: timestamp("expires_at").notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow(),
 });
 
 // product Model Table (Note: lowercased in Prisma schema)
 export const product = pgTable("product", {
   product_id: text("product_id").primaryKey(),
+  category_id: text("category_id").references(() => Category.category_id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description").notNull(),
   price: doublePrecision("price").notNull(),
   image_url: text("image_url").notNull(),
   stock: integer("stock").default(0).notNull(),
+  reward_xp: integer("reward_xp").default(0).notNull(),
+  is_unlimited_stock: boolean("is_unlimited_stock").default(false).notNull(),
+  is_single_redeem: boolean("is_single_redeem").default(false).notNull(),
   is_active: boolean("is_active").default(true).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -114,7 +147,11 @@ export const Redemption = pgTable("Redemption", {
   user_id: text("user_id").notNull().references(() => User.users_id),
   product_id: text("product_id").notNull().references(() => product.product_id),
   points_used: integer("points_used").notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow(),
 });
 
 // Juri Model Table
@@ -127,9 +164,16 @@ export const Juri = pgTable("Juri", {
   category_id: text("category_id")
     .notNull()
     .references(() => Category.category_id, { onDelete: "cascade" }),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Mission Model Table
 export const Mission = pgTable("Mission", {
   mission_id: text("mission_id").primaryKey(),
+  category_id: text("category_id").references(() => Category.category_id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   description: text("description").notNull(),
   deadline: timestamp("deadline").notNull(),
@@ -139,6 +183,8 @@ export const Mission = pgTable("Mission", {
   max_diamond: integer("max_diamond").notNull(),
   google_docs_url: text("google_docs_url").notNull(),
   status: missionStatusEnum("status").default("ACTIVE").notNull(),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -155,6 +201,19 @@ export const MissionSubmission = pgTable("MissionSubmission", {
   awarded_diamond: integer("awarded_diamond"),
   admin_feedback: text("admin_feedback"),
   reviewed_at: timestamp("reviewed_at"),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// AppSetting Model Table
+export const AppSetting = pgTable("AppSetting", {
+  key: varchar("key", { length: 100 }).primaryKey(),
+  value: text("value").notNull(),
+  description: text("description"),
+  created_by: text("created_by"),
+  updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });

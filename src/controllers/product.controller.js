@@ -10,16 +10,37 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "../models/product.model.js";
+import path from "path";
+import sharp from "sharp";
 import imagekit from "../lib/imagekit.js";
 
-// Upload image to ImageKit
+// Handle image upload to ImageKit with automatic AVIF conversion
 const uploadToImageKit = async (file) => {
-  const fileBuffer = file.buffer;
+  let fileBuffer = file.buffer;
+  let fileName = `${Date.now()}_${file.originalname}`;
+
+  try {
+    // Convert image buffer (PNG, JPG, WEBP, etc.) to AVIF
+    const avifBuffer = await sharp(file.buffer)
+      .avif({ quality: 80, effort: 4 })
+      .toBuffer();
+
+    fileBuffer = avifBuffer;
+    const baseName = path.parse(file.originalname).name || "product";
+    fileName = `${Date.now()}_${baseName}.avif`;
+  } catch (conversionError) {
+    console.warn(
+      "Failed to convert product image to AVIF, uploading original buffer:",
+      conversionError.message
+    );
+  }
+
+  // Convert file buffer to base64
   const base64Image = fileBuffer.toString("base64");
 
   const result = await imagekit.upload({
     file: base64Image,
-    fileName: `${Date.now()}_${file.originalname}`,
+    fileName,
     folder: "/product-images",
   });
 
@@ -33,6 +54,7 @@ export const getProducts = async (req, res) => {
       page: req.query.page,
       limit: req.query.limit,
       search: req.query.search,
+      category_id: req.query.category_id,
       min_price: req.query.min_price,
       max_price: req.query.max_price,
       is_active: req.query.is_active,
@@ -86,7 +108,7 @@ export const createNewProduct = async (req, res) => {
     }
 
     // Convert price to number
-    if (productData.price) {
+    if (productData.price !== undefined && productData.price !== "") {
       productData.price = Number(productData.price);
     }
 
@@ -96,8 +118,29 @@ export const createNewProduct = async (req, res) => {
         productData.is_active === "true" || productData.is_active === true;
     }
 
-    // Convert stock to number
-    if (productData.stock !== undefined) {
+    // Convert is_unlimited_stock to boolean
+    if (productData.is_unlimited_stock !== undefined) {
+      productData.is_unlimited_stock =
+        productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
+    }
+
+    // Convert is_single_redeem to boolean
+    if (productData.is_single_redeem !== undefined) {
+      productData.is_single_redeem =
+        productData.is_single_redeem === "true" || productData.is_single_redeem === true;
+    }
+
+    // Convert reward_xp to number
+    if (productData.reward_xp !== undefined && productData.reward_xp !== "") {
+      productData.reward_xp = Number(productData.reward_xp);
+    } else {
+      productData.reward_xp = 0;
+    }
+
+    // Convert stock to number (default 0 if unlimited stock)
+    if (productData.is_unlimited_stock) {
+      productData.stock = 0;
+    } else if (productData.stock !== undefined && productData.stock !== "") {
       productData.stock = Number(productData.stock);
     }
 
@@ -121,7 +164,7 @@ export const createNewProduct = async (req, res) => {
       image_url: imageUrl,
     };
 
-    const product = await createProduct(finalProductData);
+    const product = await createProduct(finalProductData, req.user?.userId);
     return response.success(res, product, "Product created successfully", 201);
   } catch (error) {
     return response.error(res, "Failed to create product", 500, error.message);
@@ -148,7 +191,7 @@ export const updateExistingProduct = async (req, res) => {
     }
 
     // Convert price to number if provided
-    if (productData.price) {
+    if (productData.price !== undefined && productData.price !== "") {
       productData.price = Number(productData.price);
     }
 
@@ -158,8 +201,27 @@ export const updateExistingProduct = async (req, res) => {
         productData.is_active === "true" || productData.is_active === true;
     }
 
+    // Convert is_unlimited_stock to boolean if provided
+    if (productData.is_unlimited_stock !== undefined) {
+      productData.is_unlimited_stock =
+        productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
+    }
+
+    // Convert is_single_redeem to boolean if provided
+    if (productData.is_single_redeem !== undefined) {
+      productData.is_single_redeem =
+        productData.is_single_redeem === "true" || productData.is_single_redeem === true;
+    }
+
+    // Convert reward_xp to number if provided
+    if (productData.reward_xp !== undefined && productData.reward_xp !== "") {
+      productData.reward_xp = Number(productData.reward_xp);
+    }
+
     // Convert stock to number if provided
-    if (productData.stock !== undefined) {
+    if (productData.is_unlimited_stock) {
+      productData.stock = 0;
+    } else if (productData.stock !== undefined && productData.stock !== "") {
       productData.stock = Number(productData.stock);
     }
 
@@ -177,7 +239,7 @@ export const updateExistingProduct = async (req, res) => {
       finalProductData.image_url = imageUrl;
     }
 
-    const updatedProduct = await updateProduct(productId, finalProductData);
+    const updatedProduct = await updateProduct(productId, finalProductData, req.user?.userId);
     return response.success(
       res,
       updatedProduct,

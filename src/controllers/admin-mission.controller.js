@@ -27,7 +27,7 @@ export const createNewMission = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const mission = await createMission(validation.data);
+    const mission = await createMission(validation.data, req.user?.userId);
 
     return response.success(
       res,
@@ -95,7 +95,7 @@ export const updateExistingMission = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const updated = await updateMission(req.params.id, validation.data);
+    const updated = await updateMission(req.params.id, validation.data, req.user?.userId);
 
     return response.success(res, updated, "Mission updated successfully");
   } catch (error) {
@@ -172,7 +172,7 @@ export const reviewSubmissionById = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const result = await reviewMissionSubmission(submissionId, validation.data);
+    const result = await reviewMissionSubmission(submissionId, validation.data, req.user?.userId);
 
     return response.success(
       res,

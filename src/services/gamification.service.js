@@ -1,114 +1,299 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, gte } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
-// Update user points (Admin/Mentor only)
-export const updateUserPoints = async (userId, pointsToAdd) => {
-  // Cari user
-  const [user] = await db
+const creatorUser = alias(schema.User, "creatorUser");
+const updaterUser = alias(schema.User, "updaterUser");
+
+// Update user points (Admin/Mentor only - legacy compatibility)
+export const updateUserPoints = async (userId, pointsToAdd, adminId = null) => {
+  // Cari registrasi user
+  const [reg] = await db
     .select()
-    .from(schema.User)
-    .where(eq(schema.User.users_id, userId))
+    .from(schema.Registration)
+    .where(eq(schema.Registration.user_id, userId))
     .limit(1);
     
-  if (!user) throw new Error("User not found");
+  if (!reg) throw new Error("Pendaftaran/tim tidak ditemukan untuk user ini");
 
-  const newPoints = user.points + pointsToAdd;
+  const newDiamond = reg.diamond + pointsToAdd;
 
-  // Update points
+  const updateData = { diamond: newDiamond, updated_at: new Date() };
+  if (adminId) {
+    updateData.updated_by = adminId;
+  }
+
+  // Update diamond
   const [updated] = await db
-    .update(schema.User)
-    .set({ points: newPoints, updated_at: new Date() })
-    .where(eq(schema.User.users_id, userId))
+    .update(schema.Registration)
+    .set(updateData)
+    .where(eq(schema.Registration.registration_id, reg.registration_id))
     .returning();
 
   return {
-    users_id: updated.users_id,
-    name: updated.name,
-    email: updated.email,
-    points: updated.points,
-    role: updated.role,
+    registration_id: updated.registration_id,
+    user_id: updated.user_id,
+    team_name: updated.team_name,
+    diamond: updated.diamond,
+    xp: updated.xp,
   };
 };
 
-// Redeem product with points (with Atomic decrement to prevent race conditions - Fixes QA-04)
-export const redeemProduct = async (userId, productId) => {
-  // Ambil user dan produk
+// Update registration gamification (Diamond & XP) - Admin only
+export const updateRegistrationGamification = async (
+  registrationId,
+  { diamond, xp },
+  adminId = null
+) => {
+  const [reg] = await db
+    .select({
+      registration: schema.Registration,
+      category: schema.Category,
+      user: schema.User,
+    })
+    .from(schema.Registration)
+    .leftJoin(
+      schema.Category,
+      eq(schema.Registration.category_id, schema.Category.category_id)
+    )
+    .leftJoin(
+      schema.User,
+      eq(schema.Registration.user_id, schema.User.users_id)
+    )
+    .where(eq(schema.Registration.registration_id, registrationId))
+    .limit(1);
+
+  if (!reg) {
+    throw new Error("Registration not found");
+  }
+
+  const updateData = { updated_at: new Date() };
+  if (diamond !== undefined) {
+    updateData.diamond = Math.max(0, Math.floor(Number(diamond)));
+  }
+  if (xp !== undefined) {
+    updateData.xp = Math.max(0, Math.floor(Number(xp)));
+  }
+  if (adminId) {
+    updateData.updated_by = adminId;
+  }
+
+  const [updated] = await db
+    .update(schema.Registration)
+    .set(updateData)
+    .where(eq(schema.Registration.registration_id, registrationId))
+    .returning();
+
+  return {
+    ...updated,
+    category: reg.category
+      ? {
+          category_id: reg.category.category_id,
+          name: reg.category.name,
+          slug: reg.category.slug,
+        }
+      : null,
+    user: reg.user
+      ? {
+          users_id: reg.user.users_id,
+          name: reg.user.name,
+          email: reg.user.email,
+        }
+      : null,
+  };
+};
+
+// Redeem product with points (with Atomic Conditional Updates to prevent race conditions - Option A)
+export const redeemProduct = async (userId, productId, quantity = 1, categoryId = null, registrationId = null) => {
+  const qty = Math.max(1, parseInt(quantity, 10) || 1);
+
+  // Ambil user awal
   const [user] = await db
     .select()
     .from(schema.User)
     .where(eq(schema.User.users_id, userId))
     .limit(1);
-    
-  if (!user) throw new Error("User not found");
+
+  if (!user) {
+    throw new Error("User not found");
+  }
 
   const [product] = await db
     .select()
     .from(schema.product)
     .where(eq(schema.product.product_id, productId))
     .limit(1);
-    
-  if (!product) throw new Error("Product not found");
 
-  if (!product.is_active) throw new Error("Product is not active");
-  if (product.stock <= 0) throw new Error("Product is out of stock");
+  if (!product) {
+    throw new Error("Product not found");
+  }
 
-  // Pastikan poin cukup
-  if (user.points < product.price) throw new Error("Insufficient points");
+  if (!product.is_active) {
+    throw new Error("Product is not active");
+  }
 
+  // Tentukan registrasi tim target berdasarkan categoryId, registrationId, atau product.category_id
+  const targetCategoryId = categoryId || product.category_id;
+  let regConditions = [eq(schema.Registration.user_id, userId)];
+
+  if (registrationId) {
+    regConditions.push(eq(schema.Registration.registration_id, registrationId));
+  } else if (targetCategoryId) {
+    regConditions.push(eq(schema.Registration.category_id, targetCategoryId));
+  }
+
+  let [reg] = await db
+    .select()
+    .from(schema.Registration)
+    .where(and(...regConditions))
+    .limit(1);
+
+  // Jika tidak ditemukan dengan kategori target spesifik, fallback ke registrasi user pertama
+  if (!reg) {
+    [reg] = await db
+      .select()
+      .from(schema.Registration)
+      .where(eq(schema.Registration.user_id, userId))
+      .limit(1);
+  }
+
+  if (!reg) {
+    throw new Error("Pendaftaran/tim tidak ditemukan untuk pengguna ini.");
+  }
+
+  // Jika produk hanya bisa di-redeem 1x, validasi quantity dan cek apakah user sudah pernah redeem sebelumnya
+  if (product.is_single_redeem) {
+    if (qty > 1) {
+      throw new Error("Produk ini hanya dapat di-redeem 1 kali per pengguna.");
+    }
+
+    const [existingRedemption] = await db
+      .select({ redemption_id: schema.Redemption.redemption_id })
+      .from(schema.Redemption)
+      .where(
+        and(
+          eq(schema.Redemption.user_id, userId),
+          eq(schema.Redemption.product_id, productId)
+        )
+      )
+      .limit(1);
+
+    if (existingRedemption) {
+      throw new Error("Produk ini hanya dapat di-redeem 1 kali per pengguna.");
+    }
+  }
+
+  const pointsNeeded = product.price * qty;
+  const earnedXp = (Number(product.reward_xp) || 0) * qty;
   const redemptionId = generateCuid();
 
-  // Kurangi poin user dan stok produk atomically
+  let updatedRegistration;
+  let updatedProduct;
+
+  // Kurangi diamond tim (dan tambah XP jika reward_xp > 0) serta kurangi stok produk di dalam transaksi
   await db.transaction(async (tx) => {
-    // Update user points atomically
-    await tx
-      .update(schema.User)
-      .set({ points: sql`${schema.User.points} - ${product.price}`, updated_at: new Date() })
-      .where(eq(schema.User.users_id, userId));
+    // 1. Update stok produk: Jika TIDAK unlimited, HANYA kurangi jika stok saat ini masih >= qty dan produk masih aktif
+    if (!product.is_unlimited_stock) {
+      const [p] = await tx
+        .update(schema.product)
+        .set({
+          stock: sql`${schema.product.stock} - ${qty}`,
+          updated_by: userId,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.product.product_id, productId),
+            eq(schema.product.is_active, true),
+            gte(schema.product.stock, qty)
+          )
+        )
+        .returning();
 
-    // Update product stock atomically
-    await tx
-      .update(schema.product)
-      .set({ stock: sql`${schema.product.stock} - 1`, updated_at: new Date() })
-      .where(eq(schema.product.product_id, productId));
+      if (!p) {
+        throw new Error("Product is out of stock");
+      }
+      updatedProduct = p;
+    } else {
+      // Jika unlimited stock, pastikan produk tetap aktif
+      const [p] = await tx
+        .select()
+        .from(schema.product)
+        .where(
+          and(
+            eq(schema.product.product_id, productId),
+            eq(schema.product.is_active, true)
+          )
+        )
+        .limit(1);
 
-    // Create redemption record
+      if (!p) {
+        throw new Error("Product is not active");
+      }
+      updatedProduct = p;
+    }
+
+    // 2. Update diamond tim (dan tambah XP jika produk memiliki reward_xp): HANYA kurangi jika diamond saat ini masih mencukupi
+    const regUpdateFields = {
+      diamond: sql`${schema.Registration.diamond} - ${pointsNeeded}`,
+      updated_by: userId,
+      updated_at: new Date(),
+    };
+    if (earnedXp > 0) {
+      regUpdateFields.xp = sql`${schema.Registration.xp} + ${earnedXp}`;
+    }
+
+    const [u] = await tx
+      .update(schema.Registration)
+      .set(regUpdateFields)
+      .where(
+        and(
+          eq(schema.Registration.registration_id, reg.registration_id),
+          gte(schema.Registration.diamond, pointsNeeded)
+        )
+      )
+      .returning();
+
+    if (!u) {
+      throw new Error("Insufficient points");
+    }
+    updatedRegistration = u;
+
+    // 3. Catat riwayat penukaran hadiah beserta quantity
     await tx
       .insert(schema.Redemption)
       .values({
         redemption_id: redemptionId,
         user_id: userId,
         product_id: productId,
-        points_used: Math.round(product.price),
+        points_used: pointsNeeded,
+        quantity: qty,
+        created_by: userId,
+        updated_by: userId,
       });
   });
 
-  // Re-fetch updated structures
-  const [updatedUser] = await db
-    .select()
-    .from(schema.User)
-    .where(eq(schema.User.users_id, userId))
-    .limit(1);
-
-  const [updatedProduct] = await db
-    .select()
-    .from(schema.product)
-    .where(eq(schema.product.product_id, productId))
-    .limit(1);
-
   return {
     user: {
-      users_id: updatedUser.users_id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      points: updatedUser.points,
+      users_id: user.users_id,
+      name: user.name,
+      email: user.email,
+      diamond: updatedRegistration.diamond,
+      xp: updatedRegistration.xp,
+      team_name: updatedRegistration.team_name,
     },
     product: {
       product_id: updatedProduct.product_id,
       name: updatedProduct.name,
       stock: updatedProduct.stock,
+      reward_xp: updatedProduct.reward_xp,
+      is_unlimited_stock: updatedProduct.is_unlimited_stock,
+      is_single_redeem: updatedProduct.is_single_redeem,
     },
+    quantity: qty,
+    earned_xp: earnedXp,
     redemption_id: redemptionId,
   };
 };
@@ -136,10 +321,18 @@ export const getAllRedeemUser = async (filters = {}) => {
 
   const [rows, [countResult]] = await Promise.all([
     db
-      .select()
+      .select({
+        Redemption: schema.Redemption,
+        User: schema.User,
+        product: schema.product,
+        creator: { name: creatorUser.name, email: creatorUser.email },
+        updater: { name: updaterUser.name, email: updaterUser.email },
+      })
       .from(schema.Redemption)
       .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .leftJoin(creatorUser, eq(schema.Redemption.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.Redemption.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.Redemption.created_at))
       .limit(Number(limit))
@@ -155,7 +348,19 @@ export const getAllRedeemUser = async (filters = {}) => {
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
     user: row.User ? { users_id: row.User.users_id, name: row.User.name, email: row.User.email } : null,
-    product: row.product ? { product_id: row.product.product_id, name: row.product.name, price: row.product.price } : null,
+    product: row.product
+      ? {
+          product_id: row.product.product_id,
+          name: row.product.name,
+          price: row.product.price,
+          image_url: row.product.image_url,
+          is_unlimited_stock: row.product.is_unlimited_stock,
+          is_single_redeem: row.product.is_single_redeem,
+          reward_xp: row.product.reward_xp,
+        }
+      : null,
+    created_by_name: row.creator?.name || row.Redemption.created_by || "-",
+    updated_by_name: row.updater?.name || row.Redemption.updated_by || "-",
   }));
 
   const total = Number(countResult?.count || 0);
@@ -173,11 +378,12 @@ export const getAllRedeemUser = async (filters = {}) => {
 
 // Get user's own redemption history
 export const getMyRedeem = async (userId, filters = {}) => {
-  const { page = 1, limit = 10, search, product_id } = filters;
+  const { page = 1, limit = 10, search, product_id, category_id } = filters;
   const skip = (page - 1) * Number(limit);
 
   const conditions = [eq(schema.Redemption.user_id, userId)];
   if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
+  if (category_id) conditions.push(eq(schema.product.category_id, category_id));
 
   if (search) {
     conditions.push(like(schema.product.name, `%${search}%`));
@@ -187,9 +393,14 @@ export const getMyRedeem = async (userId, filters = {}) => {
 
   const [rows, [countResult]] = await Promise.all([
     db
-      .select()
+      .select({
+        Redemption: schema.Redemption,
+        product: schema.product,
+        category: schema.Category,
+      })
       .from(schema.Redemption)
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .where(whereClause)
       .orderBy(desc(schema.Redemption.created_at))
       .limit(Number(limit))
@@ -203,7 +414,26 @@ export const getMyRedeem = async (userId, filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
-    product: row.product ? { product_id: row.product.product_id, name: row.product.name, price: row.product.price } : null,
+    product: row.product
+      ? {
+          product_id: row.product.product_id,
+          category_id: row.product.category_id,
+          category: row.category
+            ? {
+                category_id: row.category.category_id,
+                name: row.category.name,
+                category_name: row.category.name,
+                slug: row.category.slug,
+              }
+            : null,
+          name: row.product.name,
+          price: row.product.price,
+          image_url: row.product.image_url,
+          is_unlimited_stock: row.product.is_unlimited_stock,
+          is_single_redeem: row.product.is_single_redeem,
+          reward_xp: row.product.reward_xp,
+        }
+      : null,
   }));
 
   const total = Number(countResult?.count || 0);

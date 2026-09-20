@@ -8,6 +8,7 @@ import productRoutes from "./product.routes.js";
 import gamificationRoutes from "./gamification.routes.js";
 import adminMissionRoutes from "./admin-mission.routes.js";
 import participantMissionRoutes from "./participant-mission.routes.js";
+import settingRoutes from "./setting.routes.js";
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use("/gamification", gamificationRoutes);
 router.use("/admin/missions", adminMissionRoutes);
 router.use("/admin/submissions", adminMissionRoutes);
 router.use("/missions", participantMissionRoutes);
+router.use("/settings", settingRoutes);
 
 export default router;

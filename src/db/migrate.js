@@ -38,6 +38,58 @@ export async function runMigrations() {
     `);
   }
 
+  // Jika tabel Juri sudah ada, tandai 0001_closed_justice.sql sudah diaplikasikan
+  const juriCheck = await client.query(`
+    SELECT table_name FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'Juri';
+  `);
+  if (juriCheck.rows.length > 0) {
+    await client.query(`
+      INSERT INTO "__applied_migrations" (name) 
+      VALUES ('0001_closed_justice.sql') 
+      ON CONFLICT (name) DO NOTHING;
+    `);
+  }
+
+  // Jika tabel Mission sudah ada, tandai 0002_smart_frank_castle.sql sudah diaplikasikan
+  const missionCheck = await client.query(`
+    SELECT table_name FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'Mission';
+  `);
+  if (missionCheck.rows.length > 0) {
+    await client.query(`
+      INSERT INTO "__applied_migrations" (name) 
+      VALUES ('0002_smart_frank_castle.sql') 
+      ON CONFLICT (name) DO NOTHING;
+    `);
+  }
+
+  // Jika kolom slug pada Category sudah ada, tandai 0003_category_slug_and_remove_title.sql sudah diaplikasikan
+  const slugCheck = await client.query(`
+    SELECT column_name FROM information_schema.columns 
+    WHERE table_name = 'Category' AND column_name = 'slug';
+  `);
+  if (slugCheck.rows.length > 0) {
+    await client.query(`
+      INSERT INTO "__applied_migrations" (name) 
+      VALUES ('0003_category_slug_and_remove_title.sql') 
+      ON CONFLICT (name) DO NOTHING;
+    `);
+  }
+
+  // Jika tabel AppSetting sudah ada, tandai 0004_app_setting.sql sudah diaplikasikan
+  const appSettingCheck = await client.query(`
+    SELECT table_name FROM information_schema.tables 
+    WHERE table_schema = 'public' AND table_name = 'AppSetting';
+  `);
+  if (appSettingCheck.rows.length > 0) {
+    await client.query(`
+      INSERT INTO "__applied_migrations" (name) 
+      VALUES ('0004_app_setting.sql') 
+      ON CONFLICT (name) DO NOTHING;
+    `);
+  }
+
   // Ambil daftar migrasi yang sudah pernah dijalankan
   const appliedRes = await client.query(`SELECT name FROM "__applied_migrations";`);
   const appliedFiles = new Set(appliedRes.rows.map(r => r.name));

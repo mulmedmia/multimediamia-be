@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import dotenv from "dotenv";
 import { generateCuid } from "./cuid.js";
+import { seedCategories } from "./seed-categories.js";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ async function main() {
   const hashedPassword = await bcrypt.hash(adminPassword, saltRounds);
 
   // Check if admin user already exists
+  let adminId;
   const [existingAdmin] = await db
     .select()
     .from(schema.User)
@@ -27,6 +29,7 @@ async function main() {
     .limit(1);
 
   if (existingAdmin) {
+    adminId = existingAdmin.users_id;
     await db
       .update(schema.User)
       .set({
@@ -34,21 +37,28 @@ async function main() {
         password: hashedPassword,
         role: "ADMIN",
         is_verified: true,
+        updated_by: adminId,
         updated_at: new Date()
       })
       .where(eq(schema.User.email, adminEmail));
     console.log(`Admin user updated: ${adminEmail}`);
   } else {
+    adminId = generateCuid();
     await db.insert(schema.User).values({
-      users_id: generateCuid(),
+      users_id: adminId,
       name: adminName,
       email: adminEmail,
       password: hashedPassword,
       role: "ADMIN",
       is_verified: true,
+      created_by: adminId,
+      updated_by: adminId,
     });
     console.log(`Admin user created: ${adminEmail}`);
   }
+
+  // Seed default categories
+  await seedCategories(adminId);
 }
 
 main()

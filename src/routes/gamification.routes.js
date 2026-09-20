@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   updateUserPointsController,
+  updateRegistrationGamificationController,
   getLeaderboardByCategory,
   redeemProductController,
   getAllRedeemUserController,
@@ -10,13 +11,28 @@ import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
 const router = Router();
 
-// Admin/Mentor only routes
+// Admin/Mentor only routes: Update team gamification (Diamond & XP)
+router.patch(
+  "/registrations/:registrationId",
+  authenticateToken,
+  isAdmin,
+  updateRegistrationGamificationController
+);
+router.patch(
+  "/registrations/:registrationId/points",
+  authenticateToken,
+  isAdmin,
+  updateRegistrationGamificationController
+);
+
+// Admin/Mentor only routes: Update user points (legacy)
 router.patch(
   "/users/:userId/points",
   authenticateToken,
   isAdmin,
   updateUserPointsController
 );
+
 router.get("/:category_id", getLeaderboardByCategory);
 
 // Admin only: get all redemption history

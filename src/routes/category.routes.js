@@ -5,6 +5,7 @@ import {
   createNewCategory,
   updateExistingCategory,
   deleteCategoryById,
+  toggleSubmissionStatus,
   upload,
 } from "../controllers/category.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
@@ -23,6 +24,14 @@ router.post(
   isAdmin,
   upload.single("image"),
   createNewCategory
+);
+
+// Toggle open/close submission
+router.patch(
+  "/:id/toggle-submission",
+  authenticateToken,
+  isAdmin,
+  toggleSubmissionStatus
 );
 
 // Update category with optional image upload using PATCH
