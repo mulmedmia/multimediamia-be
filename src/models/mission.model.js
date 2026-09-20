@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createMissionSchema = z
   .object({
+    category_id: z.string().trim().min(1, "Competition category is required").optional().nullable(),
     title: z
       .string({ required_error: "Title is required" })
       .trim()
@@ -48,6 +49,7 @@ export const createMissionSchema = z
 
 export const updateMissionSchema = z
   .object({
+    category_id: z.string().trim().min(1, "Competition category is required").optional().nullable(),
     title: z.string().trim().min(3).max(255).optional(),
     description: z.string().trim().min(5).optional(),
     deadline: z
@@ -92,6 +94,7 @@ export const queryMissionsSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().trim().optional(),
+  category_id: z.string().trim().optional(),
   status: z.enum(["ACTIVE", "EXPIRED", "DRAFT"]).optional(),
 });
 
@@ -99,6 +102,7 @@ export const querySubmissionsSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(10),
   search: z.string().trim().optional(),
+  category_id: z.string().trim().optional(),
   status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
 });
 

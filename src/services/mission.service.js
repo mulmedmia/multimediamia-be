@@ -1,17 +1,22 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 import { eq, or, ilike, and, sql, desc } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
+
+const creatorUser = alias(schema.User, "creatorUser");
+const updaterUser = alias(schema.User, "updaterUser");
 
 /**
  * Membuat misi harian baru
  */
-export const createMission = async (data) => {
+export const createMission = async (data, adminId = null) => {
   const missionId = generateCuid();
   const [newMission] = await db
     .insert(schema.Mission)
     .values({
       mission_id: missionId,
+      category_id: data.category_id || null,
       title: data.title,
       description: data.description,
       deadline: new Date(data.deadline),
@@ -21,6 +26,8 @@ export const createMission = async (data) => {
       max_diamond: data.max_diamond,
       google_docs_url: data.google_docs_url,
       status: data.status || "ACTIVE",
+      created_by: adminId || null,
+      updated_by: adminId || null,
       created_at: new Date(),
       updated_at: new Date(),
     })
@@ -33,10 +40,14 @@ export const createMission = async (data) => {
  * Mengambil daftar seluruh misi harian (dengan filter & pagination)
  */
 export const getAllMissions = async (filters = {}) => {
-  const { page = 1, limit = 10, search, status } = filters;
+  const { page = 1, limit = 10, search, status, category_id } = filters;
   const skip = (Number(page) - 1) * Number(limit);
 
   const conditions = [];
+
+  if (category_id) {
+    conditions.push(eq(schema.Mission.category_id, category_id));
+  }
 
   if (search) {
     conditions.push(
@@ -53,10 +64,18 @@ export const getAllMissions = async (filters = {}) => {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const [missions, [countResult]] = await Promise.all([
+  const [rows, [countResult]] = await Promise.all([
     db
-      .select()
+      .select({
+        mission: schema.Mission,
+        category: schema.Category,
+        creator: { name: creatorUser.name, email: creatorUser.email },
+        updater: { name: updaterUser.name, email: updaterUser.email },
+      })
       .from(schema.Mission)
+      .leftJoin(schema.Category, eq(schema.Mission.category_id, schema.Category.category_id))
+      .leftJoin(creatorUser, eq(schema.Mission.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.Mission.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.Mission.created_at))
       .limit(Number(limit))
@@ -66,6 +85,20 @@ export const getAllMissions = async (filters = {}) => {
       .from(schema.Mission)
       .where(whereClause),
   ]);
+
+  const missions = rows.map((row) => ({
+    ...row.mission,
+    category: row.category
+      ? {
+          category_id: row.category.category_id,
+          name: row.category.name,
+          category_name: row.category.name,
+          slug: row.category.slug,
+        }
+      : null,
+    created_by_name: row.creator?.name || row.mission.created_by || "-",
+    updated_by_name: row.updater?.name || row.mission.updated_by || "-",
+  }));
 
   const total = Number(countResult?.count || 0);
 
@@ -84,23 +117,43 @@ export const getAllMissions = async (filters = {}) => {
  * Mengambil detail misi harian berdasarkan ID
  */
 export const getMissionById = async (missionId) => {
-  const [mission] = await db
-    .select()
+  const [row] = await db
+    .select({
+      mission: schema.Mission,
+      category: schema.Category,
+      creator: { name: creatorUser.name, email: creatorUser.email },
+      updater: { name: updaterUser.name, email: updaterUser.email },
+    })
     .from(schema.Mission)
+    .leftJoin(schema.Category, eq(schema.Mission.category_id, schema.Category.category_id))
+    .leftJoin(creatorUser, eq(schema.Mission.created_by, creatorUser.users_id))
+    .leftJoin(updaterUser, eq(schema.Mission.updated_by, updaterUser.users_id))
     .where(eq(schema.Mission.mission_id, missionId))
     .limit(1);
 
-  if (!mission) {
+  if (!row) {
     throw new Error("Mission not found");
   }
 
-  return mission;
+  return {
+    ...row.mission,
+    category: row.category
+      ? {
+          category_id: row.category.category_id,
+          name: row.category.name,
+          category_name: row.category.name,
+          slug: row.category.slug,
+        }
+      : null,
+    created_by_name: row.creator?.name || row.mission.created_by || "-",
+    updated_by_name: row.updater?.name || row.mission.updated_by || "-",
+  };
 };
 
 /**
  * Mengedit data misi harian
  */
-export const updateMission = async (missionId, data) => {
+export const updateMission = async (missionId, data, adminId = null) => {
   const existing = await getMissionById(missionId);
 
   // Validasi rentang jika salah satu batas diupdate
@@ -122,6 +175,14 @@ export const updateMission = async (missionId, data) => {
     ...data,
     updated_at: new Date(),
   };
+
+  if (data.category_id !== undefined) {
+    updatePayload.category_id = data.category_id || null;
+  }
+
+  if (adminId) {
+    updatePayload.updated_by = adminId;
+  }
 
   if (data.deadline) {
     updatePayload.deadline = new Date(data.deadline);
@@ -154,13 +215,25 @@ export const deleteMission = async (missionId) => {
  * Mengambil daftar pengumpulan peserta pada misi tertentu
  */
 export const getMissionSubmissions = async (missionId, filters = {}) => {
-  // Pastikan misi ada
-  await getMissionById(missionId);
+  const isAll = !missionId || missionId === "all";
 
-  const { page = 1, limit = 10, search, status } = filters;
+  // Pastikan misi ada jika bukan all
+  if (!isAll) {
+    await getMissionById(missionId);
+  }
+
+  const { page = 1, limit = 10, search, status, category_id } = filters;
   const skip = (Number(page) - 1) * Number(limit);
 
-  const conditions = [eq(schema.MissionSubmission.mission_id, missionId)];
+  const conditions = [];
+
+  if (!isAll) {
+    conditions.push(eq(schema.MissionSubmission.mission_id, missionId));
+  }
+
+  if (category_id) {
+    conditions.push(eq(schema.Mission.category_id, category_id));
+  }
 
   if (status) {
     conditions.push(eq(schema.MissionSubmission.status, status));
@@ -171,12 +244,13 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
       or(
         ilike(schema.User.name, `%${search}%`),
         ilike(schema.User.email, `%${search}%`),
-        ilike(schema.MissionSubmission.submission_url, `%${search}%`)
+        ilike(schema.MissionSubmission.submission_url, `%${search}%`),
+        ilike(schema.Mission.title, `%${search}%`)
       )
     );
   }
 
-  const whereClause = and(...conditions);
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [rows, [countResult]] = await Promise.all([
     db
@@ -191,6 +265,10 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
         awarded_diamond: schema.MissionSubmission.awarded_diamond,
         admin_feedback: schema.MissionSubmission.admin_feedback,
         reviewed_at: schema.MissionSubmission.reviewed_at,
+        created_by: schema.MissionSubmission.created_by,
+        updated_by: schema.MissionSubmission.updated_by,
+        creator: { name: creatorUser.name, email: creatorUser.email },
+        updater: { name: updaterUser.name, email: updaterUser.email },
         created_at: schema.MissionSubmission.created_at,
         updated_at: schema.MissionSubmission.updated_at,
         user: {
@@ -199,11 +277,42 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
           email: schema.User.email,
           nim: schema.User.nim,
         },
+        mission: {
+          mission_id: schema.Mission.mission_id,
+          category_id: schema.Mission.category_id,
+          title: schema.Mission.title,
+          min_xp: schema.Mission.min_xp,
+          max_xp: schema.Mission.max_xp,
+          min_diamond: schema.Mission.min_diamond,
+          max_diamond: schema.Mission.max_diamond,
+        },
+        category: {
+          category_id: schema.Category.category_id,
+          name: schema.Category.name,
+          category_name: schema.Category.name,
+          slug: schema.Category.slug,
+        },
       })
       .from(schema.MissionSubmission)
       .leftJoin(
         schema.User,
         eq(schema.MissionSubmission.user_id, schema.User.users_id)
+      )
+      .leftJoin(
+        schema.Mission,
+        eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id)
+      )
+      .leftJoin(
+        schema.Category,
+        eq(schema.Mission.category_id, schema.Category.category_id)
+      )
+      .leftJoin(
+        creatorUser,
+        eq(schema.MissionSubmission.created_by, creatorUser.users_id)
+      )
+      .leftJoin(
+        updaterUser,
+        eq(schema.MissionSubmission.updated_by, updaterUser.users_id)
       )
       .where(whereClause)
       .orderBy(desc(schema.MissionSubmission.created_at))
@@ -216,13 +325,24 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
         schema.User,
         eq(schema.MissionSubmission.user_id, schema.User.users_id)
       )
+      .leftJoin(
+        schema.Mission,
+        eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id)
+      )
       .where(whereClause),
   ]);
+
+  const submissions = rows.map((row) => ({
+    ...row,
+    created_by_name:
+      row.creator?.name || row.user?.name || row.created_by || "-",
+    updated_by_name: row.updater?.name || row.updated_by || "-",
+  }));
 
   const total = Number(countResult?.count || 0);
 
   return {
-    submissions: rows,
+    submissions,
     meta: {
       total,
       page: Number(page),
@@ -240,11 +360,17 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
  * Mengambil seluruh misi aktif beserta status pengumpulan milik user yang sedang login.
  * Setiap misi akan memiliki field `my_submission` (object | null).
  */
-export const getActiveMissionsForUser = async (userId) => {
-  // Query semua misi ACTIVE, left join dengan submission milik user
+export const getActiveMissionsForUser = async (userId, categoryId = null) => {
+  const whereConditions = [eq(schema.Mission.status, "ACTIVE")];
+  if (categoryId) {
+    whereConditions.push(eq(schema.Mission.category_id, categoryId));
+  }
+
+  // Query semua misi ACTIVE, left join dengan submission milik user dan kategori
   const rows = await db
     .select({
       mission_id: schema.Mission.mission_id,
+      category_id: schema.Mission.category_id,
       title: schema.Mission.title,
       description: schema.Mission.description,
       deadline: schema.Mission.deadline,
@@ -255,6 +381,7 @@ export const getActiveMissionsForUser = async (userId) => {
       google_docs_url: schema.Mission.google_docs_url,
       status: schema.Mission.status,
       created_at: schema.Mission.created_at,
+      category: schema.Category,
       // Submission milik user (nullable)
       sub_id: schema.MissionSubmission.submission_id,
       sub_url: schema.MissionSubmission.submission_url,
@@ -266,6 +393,7 @@ export const getActiveMissionsForUser = async (userId) => {
       sub_created_at: schema.MissionSubmission.created_at,
     })
     .from(schema.Mission)
+    .leftJoin(schema.Category, eq(schema.Mission.category_id, schema.Category.category_id))
     .leftJoin(
       schema.MissionSubmission,
       and(
@@ -273,7 +401,7 @@ export const getActiveMissionsForUser = async (userId) => {
         eq(schema.MissionSubmission.user_id, userId)
       )
     )
-    .where(eq(schema.Mission.status, "ACTIVE"))
+    .where(and(...whereConditions))
     .orderBy(desc(schema.Mission.created_at), desc(schema.MissionSubmission.created_at));
 
   // Deduplicate: jika user punya >1 submission (misal REJECTED lalu resubmit),
@@ -284,6 +412,15 @@ export const getActiveMissionsForUser = async (userId) => {
     if (!missionMap.has(row.mission_id)) {
       missionMap.set(row.mission_id, {
         mission_id: row.mission_id,
+        category_id: row.category_id,
+        category: row.category
+          ? {
+              category_id: row.category.category_id,
+              name: row.category.name,
+              category_name: row.category.name,
+              slug: row.category.slug,
+            }
+          : null,
         title: row.title,
         description: row.description,
         deadline: row.deadline,
@@ -421,6 +558,7 @@ export const submitMission = async (missionId, userId, data) => {
       .set({
         submission_url: data.submission_url,
         notes: data.notes || null,
+        updated_by: userId,
         updated_at: new Date(),
       })
       .where(eq(schema.MissionSubmission.submission_id, pendingSubmission.submission_id))
@@ -441,6 +579,8 @@ export const submitMission = async (missionId, userId, data) => {
       submission_url: data.submission_url,
       notes: data.notes || null,
       status: "PENDING",
+      created_by: userId,
+      updated_by: userId,
       created_at: new Date(),
       updated_at: new Date(),
     })
@@ -464,7 +604,7 @@ export const submitMission = async (missionId, userId, data) => {
  * - Update status MissionSubmission -> REJECTED, admin_feedback, reviewed_at
  * - Saldo User tidak bertambah
  */
-export const reviewMissionSubmission = async (submissionId, data) => {
+export const reviewMissionSubmission = async (submissionId, data, adminId = null) => {
   // 1. Ambil data submission beserta misi terkait
   const [row] = await db
     .select({
@@ -492,16 +632,21 @@ export const reviewMissionSubmission = async (submissionId, data) => {
 
   // 3. Logika untuk status REJECTED
   if (data.status === "REJECTED") {
+    const subRejectPayload = {
+      status: "REJECTED",
+      awarded_xp: null,
+      awarded_diamond: null,
+      admin_feedback: data.admin_feedback || null,
+      reviewed_at: new Date(),
+      updated_at: new Date(),
+    };
+    if (adminId) {
+      subRejectPayload.updated_by = adminId;
+    }
+
     const [updatedSubmission] = await db
       .update(schema.MissionSubmission)
-      .set({
-        status: "REJECTED",
-        awarded_xp: null,
-        awarded_diamond: null,
-        admin_feedback: data.admin_feedback || null,
-        reviewed_at: new Date(),
-        updated_at: new Date(),
-      })
+      .set(subRejectPayload)
       .where(eq(schema.MissionSubmission.submission_id, submissionId))
       .returning();
 
@@ -530,39 +675,48 @@ export const reviewMissionSubmission = async (submissionId, data) => {
   // Jalankan Transaksi Atomik (db.transaction)
   const result = await db.transaction(async (tx) => {
     // 4a. Update status MissionSubmission menjadi APPROVED
+    const subApprovePayload = {
+      status: "APPROVED",
+      awarded_xp: data.awarded_xp,
+      awarded_diamond: data.awarded_diamond,
+      admin_feedback: data.admin_feedback || null,
+      reviewed_at: new Date(),
+      updated_at: new Date(),
+    };
+    if (adminId) {
+      subApprovePayload.updated_by = adminId;
+    }
+
     const [updatedSub] = await tx
       .update(schema.MissionSubmission)
-      .set({
-        status: "APPROVED",
-        awarded_xp: data.awarded_xp,
-        awarded_diamond: data.awarded_diamond,
-        admin_feedback: data.admin_feedback || null,
-        reviewed_at: new Date(),
-        updated_at: new Date(),
-      })
+      .set(subApprovePayload)
       .where(eq(schema.MissionSubmission.submission_id, submissionId))
       .returning();
 
-    // 4b. Increment User.xp & User.points (Diamond) secara atomik
-    const [updatedUser] = await tx
-      .update(schema.User)
-      .set({
-        xp: sql`${schema.User.xp} + ${data.awarded_xp}`,
-        points: sql`${schema.User.points} + ${data.awarded_diamond}`,
-        updated_at: new Date(),
-      })
-      .where(eq(schema.User.users_id, submission.user_id))
-      .returning({
-        users_id: schema.User.users_id,
-        name: schema.User.name,
-        email: schema.User.email,
-        xp: schema.User.xp,
-        points: schema.User.points,
-      });
+    // 4b. Increment Registration.xp & Registration.diamond secara atomik
+    const regUpdatePayload = {
+      xp: sql`${schema.Registration.xp} + ${data.awarded_xp}`,
+      diamond: sql`${schema.Registration.diamond} + ${data.awarded_diamond}`,
+      updated_at: new Date(),
+    };
+    if (adminId) {
+      regUpdatePayload.updated_by = adminId;
+    }
+
+    const regConditions = [eq(schema.Registration.user_id, submission.user_id)];
+    if (mission.category_id) {
+      regConditions.push(eq(schema.Registration.category_id, mission.category_id));
+    }
+
+    const [updatedReg] = await tx
+      .update(schema.Registration)
+      .set(regUpdatePayload)
+      .where(and(...regConditions))
+      .returning();
 
     return {
       submission: updatedSub,
-      user: updatedUser,
+      registration: updatedReg,
     };
   });
 

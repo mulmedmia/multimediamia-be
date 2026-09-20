@@ -38,6 +38,7 @@ export const getSubmissions = async (req, res) => {
       user_id: req.query.user_id,
       status: req.query.status,
       is_verified: req.query.is_verified,
+      search: req.query.search,
     };
 
     const result = await getAllSubmissions(filters);
@@ -229,7 +230,8 @@ export const updateSubmissionStatusById = async (req, res) => {
 
     const updatedSubmission = await updateSubmissionStatus(
       submissionId,
-      validation.data
+      validation.data,
+      req.user?.userId
     );
     return response.success(
       res,
@@ -275,7 +277,11 @@ export const updateSubmissionScoreFeedbackById = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const updated = await updateSubmissionScoreFeedback(submissionId, validation.data);
+    const updated = await updateSubmissionScoreFeedback(
+      submissionId,
+      validation.data,
+      req.user?.userId
+    );
     return response.success(res, updated, "Score & feedback updated successfully");
   } catch (error) {
     if (error.message === "Submission not found") {

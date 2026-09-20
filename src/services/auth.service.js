@@ -24,22 +24,22 @@ const findUserByNim = async (nim) => {
     .limit(1);
   return user || null;
 };
-
 const createUser = async (userData) => {
   const salt = await bcrypt.genSalt(10);
   const hashedPassword = await bcrypt.hash(userData.password, salt);
-
+  const newUserId = generateCuid();
   const [user] = await db
     .insert(schema.User)
     .values({
-      users_id: generateCuid(),
+      users_id: newUserId,
       name: userData.name,
       email: userData.email,
       nim: userData.nim || null,
       password: hashedPassword,
       role: "USER",
       is_verified: false,
-      points: 0,
+      created_by: newUserId,
+      updated_by: newUserId,
     })
     .returning();
 
@@ -88,7 +88,11 @@ export const verifyUserOtp = async (email, otp) => {
   // Update user verification status
   const [updatedUser] = await db
     .update(schema.User)
-    .set({ is_verified: true })
+    .set({
+      is_verified: true,
+      updated_by: user.users_id,
+      updated_at: new Date(),
+    })
     .where(eq(schema.User.email, email))
     .returning();
 
@@ -148,6 +152,7 @@ export const resetPasswordWithOtp = async (email, otp, newPassword) => {
     .set({
       password: hashedPassword,
       is_verified: true,
+      updated_by: user.users_id,
       updated_at: new Date(),
     })
     .where(eq(schema.User.email, email))

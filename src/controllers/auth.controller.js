@@ -3,9 +3,13 @@ import { createOTP, verifyOTP } from "../services/otp.service.js";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 import { eq, desc, and } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 import bcrypt from "bcrypt";
 import { response } from "../utils/response.js";
+
+const creatorUser = alias(schema.User, "creatorUser");
+const updaterUser = alias(schema.User, "updaterUser");
 
 // Register user and send OTP
 export const register = async (req, res) => {
@@ -173,16 +177,20 @@ export const createJuri = async (req, res) => {
       }
     }
 
+    const adminId = req.user?.userId;
+    const newJuriId = generateCuid();
     const hashedPassword = await bcrypt.hash(password, 10);
     const [juri] = await db
       .insert(schema.User)
       .values({
-        users_id: generateCuid(),
+        users_id: newJuriId,
         name,
         email,
         password: hashedPassword,
         role: "JURI",
         is_verified: true,
+        created_by: adminId || newJuriId,
+        updated_by: adminId || newJuriId,
       })
       .returning();
 
@@ -191,6 +199,8 @@ export const createJuri = async (req, res) => {
         juri_id: generateCuid(),
         users_id: juri.users_id,
         category_id,
+        created_by: adminId || newJuriId,
+        updated_by: adminId || newJuriId,
       });
     }
 
@@ -244,18 +254,30 @@ export const getAllJuri = async (req, res) => {
         is_verified: schema.User.is_verified,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
+        created_by: schema.User.created_by,
+        created_by_name: creatorUser.name,
+        updated_by: schema.User.updated_by,
+        updated_by_name: updaterUser.name,
         juri_id: schema.Juri.juri_id,
         category_id: schema.Juri.category_id,
-        category_name: schema.Category.category_name,
-        category_title: schema.Category.title,
+        category_name: schema.Category.name,
+        category_slug: schema.Category.slug,
       })
       .from(schema.User)
       .leftJoin(schema.Juri, eq(schema.User.users_id, schema.Juri.users_id))
       .leftJoin(schema.Category, eq(schema.Juri.category_id, schema.Category.category_id))
+      .leftJoin(creatorUser, eq(schema.User.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.User.updated_by, updaterUser.users_id))
       .where(eq(schema.User.role, "JURI"))
       .orderBy(desc(schema.User.created_at));
 
-    return response.success(res, juries, "All JURI retrieved successfully");
+    const result = juries.map((j) => ({
+      ...j,
+      created_by_name: j.created_by_name || j.created_by || "-",
+      updated_by_name: j.updated_by_name || j.updated_by || "-",
+    }));
+
+    return response.success(res, result, "All JURI retrieved successfully");
   } catch (error) {
     return response.error(res, "Failed to get JURI", 500, error.message);
   }
@@ -273,21 +295,35 @@ export const getJuriById = async (req, res) => {
         is_verified: schema.User.is_verified,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
+        created_by: schema.User.created_by,
+        created_by_name: creatorUser.name,
+        updated_by: schema.User.updated_by,
+        updated_by_name: updaterUser.name,
         juri_id: schema.Juri.juri_id,
         category_id: schema.Juri.category_id,
-        category_name: schema.Category.category_name,
-        category_title: schema.Category.title,
+        category_name: schema.Category.name,
+        category_slug: schema.Category.slug,
       })
       .from(schema.User)
       .leftJoin(schema.Juri, eq(schema.User.users_id, schema.Juri.users_id))
       .leftJoin(schema.Category, eq(schema.Juri.category_id, schema.Category.category_id))
+      .leftJoin(creatorUser, eq(schema.User.created_by, creatorUser.users_id))
+      .leftJoin(updaterUser, eq(schema.User.updated_by, updaterUser.users_id))
       .where(and(eq(schema.User.users_id, id), eq(schema.User.role, "JURI")))
       .limit(1);
 
     if (!juri) {
       return response.error(res, "JURI not found", 404);
     }
-    return response.success(res, juri, "JURI retrieved successfully");
+    return response.success(
+      res,
+      {
+        ...juri,
+        created_by_name: juri.created_by_name || juri.created_by || "-",
+        updated_by_name: juri.updated_by_name || juri.updated_by || "-",
+      },
+      "JURI retrieved successfully"
+    );
   } catch (error) {
     return response.error(res, "Failed to get JURI", 500, error.message);
   }
@@ -332,11 +368,14 @@ export const assignJuriCategory = async (req, res) => {
       .where(eq(schema.Juri.users_id, id))
       .limit(1);
 
+    const adminId = req.user?.userId;
+
     if (existingJuri) {
       await db
         .update(schema.Juri)
         .set({
           category_id,
+          updated_by: adminId || null,
           updated_at: new Date(),
         })
         .where(eq(schema.Juri.users_id, id));
@@ -345,6 +384,8 @@ export const assignJuriCategory = async (req, res) => {
         juri_id: generateCuid(),
         users_id: id,
         category_id,
+        created_by: adminId || null,
+        updated_by: adminId || null,
       });
     }
 

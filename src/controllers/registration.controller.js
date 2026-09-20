@@ -144,6 +144,10 @@ export const updateExistingRegistration = async (req, res) => {
       return response.error(res, "Forbidden: You are not authorized to update this registration", 403);
     }
 
+    if (registration.is_verified && req.user.role !== "ADMIN") {
+      return response.error(res, "Tidak dapat mengedit data tim yang sudah terverifikasi", 400);
+    }
+
     // Validate Google Drive link if provided
     if (file_url && !isGoogleDriveLink(file_url)) {
       return response.error(res, "file_url must be a valid Google Drive link", 400);
@@ -161,7 +165,7 @@ export const updateExistingRegistration = async (req, res) => {
       return response.validation(res, validation.error.format());
     }
 
-    const updatedRegistration = await updateRegistration(registrationId, validation.data);
+    const updatedRegistration = await updateRegistration(registrationId, validation.data, userId);
 
     return response.success(res, updatedRegistration, "Registration updated successfully");
   } catch (error) {
@@ -211,7 +215,7 @@ export const verifyRegistrationByAdmin = async (req, res) => {
   try {
     const registrationId = req.params.id;
     const { is_verified } = req.body;
-    const updatedRegistration = await updateRegistration(registrationId, { is_verified });
+    const updatedRegistration = await updateRegistration(registrationId, { is_verified }, req.user?.userId);
     return response.success(res, updatedRegistration, "Registration verified successfully");
   } catch (error) {
     if (error.message === "Registration not found") {
@@ -232,7 +236,7 @@ export const giveRegistrationFeedback = async (req, res) => {
     }
 
     // Update registration dengan feedback
-    const updatedRegistration = await updateRegistration(registrationId, { feedback });
+    const updatedRegistration = await updateRegistration(registrationId, { feedback }, req.user?.userId);
 
     return response.success(res, updatedRegistration, "Feedback diberikan ke peserta");
   } catch (error) {

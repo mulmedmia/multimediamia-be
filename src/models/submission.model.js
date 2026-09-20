@@ -12,7 +12,16 @@ export const createSubmissionSchema = z.object({
   links: z
     .array(
       z.object({
-        link_type: z.enum(["GITHUB", "YOUTUBE", "OTHER"]),
+        link_type: z.enum([
+          "GITHUB",
+          "GITHUB_SECONDARY",
+          "YOUTUBE",
+          "DEPLOYMENT",
+          "PROPOSAL",
+          "FIGMA",
+          "FIGMA_PROTOTYPE",
+          "OTHER",
+        ]),
         url: z.string().url("Valid URL is required"),
         description: z.string().optional(),
       }),
@@ -35,7 +44,16 @@ export const updateSubmissionSchema = z.object({
   links: z
     .array(
       z.object({
-        link_type: z.enum(["GITHUB", "YOUTUBE", "OTHER"]),
+        link_type: z.enum([
+          "GITHUB",
+          "GITHUB_SECONDARY",
+          "YOUTUBE",
+          "DEPLOYMENT",
+          "PROPOSAL",
+          "FIGMA",
+          "FIGMA_PROTOTYPE",
+          "OTHER",
+        ]),
         url: z.string().url("Valid URL is required"),
         description: z.string().optional(),
       }),
