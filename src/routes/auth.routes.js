@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
-import { register, login, requestOTP, verifyOtp, createJuri, deleteJuri, getAllJuri, getJuriById, assignJuriCategory, forgotPassword, verifyResetOtp, resetPassword } from "../controllers/auth.controller.js";
+import { register, login, requestOTP, verifyOtp, createAdmin, createBulkAdmin, createJuri, deleteJuri, getAllJuri, getJuriById, assignJuriCategory, forgotPassword, verifyResetOtp, resetPassword } from "../controllers/auth.controller.js";
 import { validateRegister, validateLogin, validateRequestOtp, validateVerifyOtp, validateForgotPassword, validateVerifyResetOtp, validateResetPassword } from "../middleware/auth.js";
 import { authLimiter } from "../middleware/rateLimiter.js";
 
@@ -15,6 +15,10 @@ router.post("/login", authLimiter, validateLogin, login);
 router.post("/forgot-password", authLimiter, validateForgotPassword, forgotPassword);
 router.post("/verify-reset-otp", authLimiter, validateVerifyResetOtp, verifyResetOtp);
 router.post("/reset-password", authLimiter, validateResetPassword, resetPassword);
+
+// Admin management (Admin-only)
+router.post("/admin", authenticateToken, isAdmin, createAdmin);
+router.post("/admin/bulk", authenticateToken, isAdmin, createBulkAdmin);
 
 // juri 
 router.post("/juri", authenticateToken, isAdmin, createJuri);

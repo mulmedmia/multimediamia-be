@@ -177,6 +177,149 @@ export const login = async (req, res) => {
   }
 };
 
+// ADMIN: Create another ADMIN (Admin-only feature)
+export const createAdmin = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return response.error(res, "Name, email, and password are required", 400);
+    }
+
+    if (password.length < 6) {
+      return response.error(res, "Password must be at least 6 characters", 400);
+    }
+
+    // Cek email sudah terdaftar
+    const [existing] = await db
+      .select()
+      .from(schema.User)
+      .where(eq(schema.User.email, email))
+      .limit(1);
+
+    if (existing) {
+      return response.error(res, "Email already registered", 400);
+    }
+
+    const currentAdminId = req.user?.userId;
+    const newAdminId = generateCuid();
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [newAdmin] = await db
+      .insert(schema.User)
+      .values({
+        users_id: newAdminId,
+        name,
+        email,
+        password: hashedPassword,
+        role: "ADMIN",
+        is_verified: true,
+        created_by: currentAdminId || newAdminId,
+        updated_by: currentAdminId || newAdminId,
+      })
+      .returning();
+
+    return response.success(
+      res,
+      {
+        users_id: newAdmin.users_id,
+        name: newAdmin.name,
+        email: newAdmin.email,
+        role: newAdmin.role,
+        is_verified: newAdmin.is_verified,
+      },
+      "Admin user created successfully",
+      201
+    );
+  } catch (error) {
+    return response.error(res, "Failed to create admin user", 500, error.message);
+  }
+};
+
+// ADMIN: Bulk Create ADMIN accounts (Admin-only)
+export const createBulkAdmin = async (req, res) => {
+  try {
+    const { admins } = req.body;
+    if (!Array.isArray(admins) || admins.length === 0) {
+      return response.error(res, "Field 'admins' must be a non-empty array", 400);
+    }
+
+    const currentAdminId = req.user?.userId;
+    const results = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const item of admins) {
+      const { name, email, password } = item;
+      const cleanName = name ? name.trim() : "";
+      const cleanEmail = email ? email.trim().toLowerCase() : "";
+      const cleanPass = password ? password.trim() : "";
+
+      if (!cleanName || cleanName.length < 3 || !cleanEmail || !cleanPass || cleanPass.length < 6) {
+        results.push({ email: cleanEmail || "-", status: "failed", reason: "Invalid name, email, or password < 6 chars" });
+        failedCount++;
+        continue;
+      }
+
+      try {
+        const [existing] = await db
+          .select()
+          .from(schema.User)
+          .where(eq(schema.User.email, cleanEmail))
+          .limit(1);
+
+        const hashedPassword = await bcrypt.hash(cleanPass, 10);
+
+        if (existing) {
+          await db
+            .update(schema.User)
+            .set({
+              name: cleanName,
+              password: hashedPassword,
+              role: "ADMIN",
+              is_verified: true,
+              updated_by: currentAdminId || existing.users_id,
+              updated_at: new Date(),
+            })
+            .where(eq(schema.User.email, cleanEmail));
+
+          results.push({ email: cleanEmail, name: cleanName, status: "updated_to_admin" });
+        } else {
+          const newAdminId = generateCuid();
+          await db.insert(schema.User).values({
+            users_id: newAdminId,
+            name: cleanName,
+            email: cleanEmail,
+            password: hashedPassword,
+            role: "ADMIN",
+            is_verified: true,
+            created_by: currentAdminId || newAdminId,
+            updated_by: currentAdminId || newAdminId,
+          });
+
+          results.push({ email: cleanEmail, name: cleanName, status: "created" });
+        }
+        successCount++;
+      } catch (err) {
+        results.push({ email: cleanEmail, status: "failed", reason: err.message });
+        failedCount++;
+      }
+    }
+
+    return response.success(
+      res,
+      {
+        total: admins.length,
+        successCount,
+        failedCount,
+        results,
+      },
+      `Bulk admin processing completed: ${successCount} successful, ${failedCount} failed`,
+      200
+    );
+  } catch (error) {
+    return response.error(res, "Failed to bulk create admins", 500, error.message);
+  }
+};
+
 // JURI: Create JURI
 export const createJuri = async (req, res) => {
   try {

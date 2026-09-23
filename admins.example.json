@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Admin Divisi Lomba",
+    "email": "lomba@mia2026.com",
+    "password": "PasswordLomba2026!"
+  },
+  {
+    "name": "Admin Sekretariat",
+    "email": "sekretariat@mia2026.com",
+    "password": "PasswordSekretariat2026!"
+  },
+  {
+    "name": "Admin Publikasi & Medpart",
+    "email": "medpart@mia2026.com",
+    "password": "PasswordMedpart2026!"
+  },
+  {
+    "name": "Admin Konsumsi & Logistik",
+    "email": "logistik@mia2026.com",
+    "password": "PasswordLogistik2026!"
+  }
+]
