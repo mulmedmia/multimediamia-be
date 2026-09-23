@@ -17,7 +17,11 @@
     "db:backup": "node src/db/backup.js",
     "db:push": "drizzle-kit push",
     "db:push:prod": "npx dotenv-cli -e .env.production -- drizzle-kit push",
-    "db:reset": "node src/db/reset.js"
+    "db:reset": "node src/db/reset.js",
+    "create:admin": "node src/db/create-admin.js",
+    "create:admin:prod": "node src/db/create-admin.js --prod",
+    "create:admin:bulk": "node src/db/create-admin.js --bulk",
+    "create:admin:bulk:prod": "node src/db/create-admin.js --prod --bulk"
   },
   "keywords": [],
   "author": "",
