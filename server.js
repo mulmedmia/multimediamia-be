@@ -55,8 +55,12 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow non-browser requests (Postman, server-to-server, health check) or development origins
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+      // Allow non-browser requests (Postman, server-to-server, health check)
+      if (!origin) return callback(null, true);
+
+      // Check if origin is explicitly whitelisted, matches Vercel deployment, or in dev mode
+      const isVercel = /^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin);
+      if (allowedOrigins.includes(origin) || isVercel || process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
       return callback(new Error("CORS policy does not allow access from this origin."));
