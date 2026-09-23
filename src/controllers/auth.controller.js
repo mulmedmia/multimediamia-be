@@ -7,6 +7,15 @@ import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 import bcrypt from "bcrypt";
 import { response } from "../utils/response.js";
+import {
+  registerSchema,
+  verifyOtpSchema,
+  loginSchema,
+  requestOtpSchema,
+  forgotPasswordSchema,
+  verifyResetOtpSchema,
+  resetPasswordSchema,
+} from "../models/auth.model.js";
 
 const creatorUser = alias(schema.User, "creatorUser");
 const updaterUser = alias(schema.User, "updaterUser");
@@ -15,7 +24,12 @@ const updaterUser = alias(schema.User, "updaterUser");
 export const register = async (req, res) => {
   let createdUser = null;
   try {
-    const { name, email, password } = req.body;
+    const validation = registerSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { name, email, password } = validation.data;
     
     // Register user (will be unverified)
     createdUser = await registerUser({ name, email, password });
@@ -56,7 +70,12 @@ export const register = async (req, res) => {
 // Verify OTP
 export const verifyOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const validation = verifyOtpSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email, otp } = validation.data;
     
     // Verify OTP
     const isOtpValid = await verifyOTP(email, otp);
@@ -93,7 +112,12 @@ export const verifyOtp = async (req, res) => {
 // Request OTP (if user wants to resend registration OTP)
 export const requestOTP = async (req, res) => {
   try {
-    const { email } = req.body;
+    const validation = requestOtpSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email } = validation.data;
     
     // Check if user exists in DB
     const [user] = await db
@@ -120,13 +144,21 @@ export const requestOTP = async (req, res) => {
       200
     );
   } catch (error) {
+    if (error.message && error.message.startsWith("Mohon tunggu")) {
+      return response.error(res, error.message, 429);
+    }
     return response.error(res, "Failed to send OTP", 500, error.message);
   }
 };
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const validation = loginSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email, password } = validation.data;
     const result = await loginUser(email, password);
     
     return response.success(
@@ -403,7 +435,12 @@ export const assignJuriCategory = async (req, res) => {
 // Request password reset OTP
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const validation = forgotPasswordSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email } = validation.data;
     
     // Check if user exists
     const [user] = await db
@@ -426,6 +463,9 @@ export const forgotPassword = async (req, res) => {
       200
     );
   } catch (error) {
+    if (error.message && error.message.startsWith("Mohon tunggu")) {
+      return response.error(res, error.message, 429);
+    }
     return response.error(res, "Failed to send password reset OTP", 500, error.message);
   }
 };
@@ -433,7 +473,12 @@ export const forgotPassword = async (req, res) => {
 // Verify reset password OTP
 export const verifyResetOtp = async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const validation = verifyResetOtpSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email, otp } = validation.data;
     
     // Verify OTP
     const isOtpValid = await verifyOTP(email, otp);
@@ -455,7 +500,12 @@ export const verifyResetOtp = async (req, res) => {
 // Reset password with OTP
 export const resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const validation = resetPasswordSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const { email, otp, newPassword } = validation.data;
     
     // Verify OTP
     const isOtpValid = await verifyOTP(email, otp);

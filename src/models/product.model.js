@@ -2,7 +2,12 @@ import { z } from "zod";
 
 // Schema for creating a product
 export const createProductSchema = z.object({
-  category_id: z.string().min(1, "Competition category is required").optional().nullable(),
+  category_id: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .transform((val) => (!val || val === "ALL" || val === "all" ? null : val)),
   name: z.string().min(1, "Product name is required"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   price: z.number().positive("Price must be a positive number"),
@@ -23,7 +28,12 @@ export const createProductSchema = z.object({
 
 // Schema for updating a product
 export const updateProductSchema = z.object({
-  category_id: z.string().min(1, "Competition category is required").optional().nullable(),
+  category_id: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .transform((val) => (!val || val === "ALL" || val === "all" ? null : val)),
   name: z.string().min(1, "Product name is required").optional(),
   description: z
     .string()

@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, gte } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, gte, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -300,13 +300,20 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
 
 // Get all redemption history (admin only)
 export const getAllRedeemUser = async (filters = {}) => {
-  const { page = 1, limit = 10, search, user_id, product_id } = filters;
+  const { page = 1, limit = 10, search, user_id, product_id, category_id } = filters;
   const skip = (page - 1) * Number(limit);
 
   const conditions = [];
 
   if (user_id) conditions.push(eq(schema.Redemption.user_id, user_id));
   if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
+  if (category_id) {
+    if (category_id.toLowerCase() === "global") {
+      conditions.push(isNull(schema.product.category_id));
+    } else if (category_id.toLowerCase() !== "all") {
+      conditions.push(eq(schema.product.category_id, category_id));
+    }
+  }
 
   if (search) {
     conditions.push(
@@ -325,12 +332,14 @@ export const getAllRedeemUser = async (filters = {}) => {
         Redemption: schema.Redemption,
         User: schema.User,
         product: schema.product,
+        category: schema.Category,
         creator: { name: creatorUser.name, email: creatorUser.email },
         updater: { name: updaterUser.name, email: updaterUser.email },
       })
       .from(schema.Redemption)
       .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .leftJoin(creatorUser, eq(schema.Redemption.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.Redemption.updated_by, updaterUser.users_id))
       .where(whereClause)
@@ -342,16 +351,34 @@ export const getAllRedeemUser = async (filters = {}) => {
       .from(schema.Redemption)
       .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
+      .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .where(whereClause),
   ]);
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
     user: row.User ? { users_id: row.User.users_id, name: row.User.name, email: row.User.email } : null,
+    category: row.category
+      ? {
+          category_id: row.category.category_id,
+          name: row.category.name,
+          category_name: row.category.name,
+          slug: row.category.slug,
+        }
+      : null,
     product: row.product
       ? {
           product_id: row.product.product_id,
           name: row.product.name,
+          category_id: row.product.category_id,
+          category: row.category
+            ? {
+                category_id: row.category.category_id,
+                name: row.category.name,
+                category_name: row.category.name,
+                slug: row.category.slug,
+              }
+            : null,
           price: row.product.price,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
@@ -383,7 +410,14 @@ export const getMyRedeem = async (userId, filters = {}) => {
 
   const conditions = [eq(schema.Redemption.user_id, userId)];
   if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
-  if (category_id) conditions.push(eq(schema.product.category_id, category_id));
+  if (category_id) {
+    conditions.push(
+      or(
+        eq(schema.product.category_id, category_id),
+        isNull(schema.product.category_id)
+      )
+    );
+  }
 
   if (search) {
     conditions.push(like(schema.product.name, `%${search}%`));

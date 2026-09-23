@@ -5,6 +5,7 @@ import {
   updateCategory,
   deleteCategory,
   toggleCategorySubmission,
+  toggleCategoryShowIt,
 } from "../services/category.service.js";
 import { response } from "../utils/response.js";
 import {
@@ -315,6 +316,30 @@ export const toggleSubmissionStatus = async (req, res) => {
       return response.error(res, error.message, 404);
     }
     return response.error(res, "Gagal mengubah status pengumpulan", 500, error.message);
+  }
+};
+
+// Toggle Show It status open/close (admin only)
+export const toggleShowItStatus = async (req, res) => {
+  try {
+    const categoryId = req.params.id;
+    const { is_show_it_open } = req.body || {};
+    const updatedCategory = await toggleCategoryShowIt(
+      categoryId,
+      { is_show_it_open },
+      req.user?.userId
+    );
+
+    return response.success(
+      res,
+      updatedCategory,
+      `Penayangan karya di Show It berhasil ${updatedCategory.is_show_it_open ? "dibuka" : "ditutup"}`
+    );
+  } catch (error) {
+    if (error.message === "Category not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Gagal mengubah status penayangan Show It", 500, error.message);
   }
 };
 

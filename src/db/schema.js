@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, boolean, integer, timestamp, doublePrecision, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, integer, timestamp, doublePrecision, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 // Define Enums (matching PostgreSQL custom types created by Prisma)
 export const roleEnum = pgEnum("Role", ["USER", "ADMIN", "JURI"]);
@@ -50,8 +50,10 @@ export const Category = pgTable("Category", {
   batch_2_end: timestamp("batch_2_end"),
   is_submission_open: boolean("is_submission_open").default(true).notNull(),
   allow_revision: boolean("allow_revision").default(false).notNull(),
+  is_show_it_open: boolean("is_show_it_open").default(false).notNull(),
   image: text("image").notNull(),
   file_url: text("file_url"),
+  whatsapp_group_url: text("whatsapp_group_url"),
   team_type: teamTypeEnum("team_type").default("INDIVIDUAL").notNull(),
   status: verificationStatusEnum("status").notNull(),
   created_by: text("created_by"),
@@ -61,66 +63,99 @@ export const Category = pgTable("Category", {
 });
 
 // Registration Model Table
-export const Registration = pgTable("Registration", {
-  registration_id: text("registration_id").primaryKey(),
-  user_id: text("user_id").notNull().references(() => User.users_id),
-  category_id: text("category_id").notNull().references(() => Category.category_id),
-  file_url: text("file_url").notNull(),
-  team_name: text("team_name"),
-  team_members: text("team_members"),
-  is_verified: boolean("is_verified").notNull(),
-  feedback: text("feedback"),
-  diamond: integer("diamond").default(0).notNull(),
-  xp: integer("xp").default(0).notNull(),
-  created_by: text("created_by"),
-  updated_by: text("updated_by"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
+export const Registration = pgTable(
+  "Registration",
+  {
+    registration_id: text("registration_id").primaryKey(),
+    user_id: text("user_id").notNull().references(() => User.users_id),
+    category_id: text("category_id").notNull().references(() => Category.category_id),
+    file_url: text("file_url").notNull(),
+    team_name: text("team_name"),
+    team_members: text("team_members"),
+    is_verified: boolean("is_verified").notNull(),
+    feedback: text("feedback"),
+    diamond: integer("diamond").default(0).notNull(),
+    xp: integer("xp").default(0).notNull(),
+    created_by: text("created_by"),
+    updated_by: text("updated_by"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("idx_registration_category_team_name_unique").on(
+      table.category_id,
+      table.team_name
+    ),
+    index("idx_registration_leaderboard").on(
+      table.category_id,
+      table.is_verified,
+      table.xp.desc(),
+      table.diamond.desc()
+    ),
+  ]
+);
 
 // Submission Model Table
-export const Submission = pgTable("Submission", {
-  submission_id: text("submission_id").primaryKey(),
-  user_id: text("user_id").notNull().references(() => User.users_id),
-  category_id: text("category_id").notNull().references(() => Category.category_id),
-  team_name: text("team_name").notNull(),
-  project_name: text("project_name").notNull(),
-  description: text("description").notNull(),
-  flow_application: text("flow_application").notNull(),
-  score: doublePrecision("score"),
-  feedback: text("feedback"),
-  status: submissionStatusEnum("status").default("PENDING").notNull(),
-  is_verified: boolean("is_verified").default(false).notNull(),
-  created_by: text("created_by"),
-  updated_by: text("updated_by"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
+export const Submission = pgTable(
+  "Submission",
+  {
+    submission_id: text("submission_id").primaryKey(),
+    user_id: text("user_id").notNull().references(() => User.users_id),
+    category_id: text("category_id").notNull().references(() => Category.category_id),
+    team_name: text("team_name").notNull(),
+    project_name: text("project_name").notNull(),
+    description: text("description").notNull(),
+    flow_application: text("flow_application").notNull(),
+    status: submissionStatusEnum("status").default("PENDING").notNull(),
+    is_verified: boolean("is_verified").default(false).notNull(),
+    created_by: text("created_by"),
+    updated_by: text("updated_by"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_submission_show_it").on(table.status, table.is_verified, table.created_at.desc()),
+    index("idx_submission_category_id").on(table.category_id),
+    index("idx_submission_user_id").on(table.user_id),
+  ]
+);
 
 // SubmissionLink Model Table
-export const SubmissionLink = pgTable("SubmissionLink", {
-  link_id: text("link_id").primaryKey(),
-  submission_id: text("submission_id").notNull().references(() => Submission.submission_id, { onDelete: "cascade" }),
-  link_type: linkTypeEnum("link_type").notNull(),
-  url: text("url").notNull(),
-  description: text("description"),
-  created_by: text("created_by"),
-  updated_by: text("updated_by"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
+export const SubmissionLink = pgTable(
+  "SubmissionLink",
+  {
+    link_id: text("link_id").primaryKey(),
+    submission_id: text("submission_id").notNull().references(() => Submission.submission_id, { onDelete: "cascade" }),
+    link_type: linkTypeEnum("link_type").notNull(),
+    url: text("url").notNull(),
+    description: text("description"),
+    created_by: text("created_by"),
+    updated_by: text("updated_by"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_submission_link_submission_id").on(table.submission_id),
+  ]
+);
 
 // OTP Model Table
-export const OTP = pgTable("OTP", {
-  id: text("id").primaryKey(),
-  email: text("email").notNull(),
-  code: text("code").notNull(),
-  expires_at: timestamp("expires_at").notNull(),
-  created_by: text("created_by"),
-  updated_by: text("updated_by"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow(),
-});
+export const OTP = pgTable(
+  "OTP",
+  {
+    id: text("id").primaryKey(),
+    email: text("email").notNull(),
+    code: text("code").notNull(),
+    expires_at: timestamp("expires_at").notNull(),
+    created_by: text("created_by"),
+    updated_by: text("updated_by"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_otp_email_created_at").on(table.email, table.created_at.desc()),
+  ]
+);
 
 // product Model Table (Note: lowercased in Prisma schema)
 export const product = pgTable("product", {

@@ -2,7 +2,12 @@ import { z } from "zod";
 
 export const createMissionSchema = z
   .object({
-    category_id: z.string().trim().min(1, "Competition category is required").optional().nullable(),
+    category_id: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val === "ALL" || val === "all" ? null : val)),
     title: z
       .string({ required_error: "Title is required" })
       .trim()
@@ -49,7 +54,12 @@ export const createMissionSchema = z
 
 export const updateMissionSchema = z
   .object({
-    category_id: z.string().trim().min(1, "Competition category is required").optional().nullable(),
+    category_id: z
+      .string()
+      .trim()
+      .optional()
+      .nullable()
+      .transform((val) => (!val || val === "ALL" || val === "all" ? null : val)),
     title: z.string().trim().min(3).max(255).optional(),
     description: z.string().trim().min(5).optional(),
     deadline: z

@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, desc } from "drizzle-orm";
 import { sendOtpEmail } from "../lib/mailer.js";
 import { generateCuid } from "../db/cuid.js";
 
@@ -17,6 +17,22 @@ export const createOTP = async (email) => {
   expiresAt.setMinutes(expiresAt.getMinutes() + 10); // OTP expires in 10 minutes
   
   try {
+    // Cooldown check: prevent requesting OTP repeatedly within 60 seconds (MIA-SEC-008)
+    const [recentOtp] = await db
+      .select({ created_at: schema.OTP.created_at })
+      .from(schema.OTP)
+      .where(eq(schema.OTP.email, email))
+      .orderBy(desc(schema.OTP.created_at))
+      .limit(1);
+
+    if (recentOtp && recentOtp.created_at) {
+      const elapsedMs = Date.now() - new Date(recentOtp.created_at).getTime();
+      if (elapsedMs < 60000) {
+        const remainingSeconds = Math.ceil((60000 - elapsedMs) / 1000);
+        throw new Error(`Mohon tunggu ${remainingSeconds} detik sebelum meminta kode OTP baru.`);
+      }
+    }
+
     // Delete any existing OTPs for this email
     await db.delete(schema.OTP).where(eq(schema.OTP.email, email));
     
@@ -61,6 +77,9 @@ export const createOTP = async (email) => {
 
     return true;
   } catch (error) {
+    if (error.message && error.message.startsWith("Mohon tunggu")) {
+      throw error;
+    }
     console.error("Error creating OTP:", error);
     throw new Error("Failed to create and send OTP");
   }

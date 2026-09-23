@@ -4,6 +4,7 @@ import {
   createRegistration,
   updateRegistration,
   deleteRegistration,
+  checkTeamNameAvailability,
 } from "../services/registration.service.js";
 import { response } from "../utils/response.js";
 import { createRegistrationSchema, updateRegistrationSchema } from "../models/registration.model.js";
@@ -118,7 +119,27 @@ export const createNewRegistration = async (req, res) => {
     if (error.message === "User already registered for this category") {
       return response.error(res, error.message, 400);
     }
+    if (error.message === "Nama tim sudah digunakan dalam kategori lomba ini") {
+      return response.error(res, error.message, 400);
+    }
     return response.error(res, "Failed to submit registration", 500, error.message);
+  }
+};
+
+// Check team name availability within a category
+export const checkTeamNameAvailabilityController = async (req, res) => {
+  try {
+    const { category_id, team_name, exclude_id } = req.query;
+    if (!category_id || !team_name) {
+      return response.validation(res, {
+        message: "category_id dan team_name wajib disertakan",
+      });
+    }
+
+    const result = await checkTeamNameAvailability(category_id, team_name, exclude_id);
+    return response.success(res, result, result.message);
+  } catch (error) {
+    return response.error(res, "Gagal memeriksa ketersediaan nama tim", 500, error.message);
   }
 };
 
@@ -173,6 +194,9 @@ export const updateExistingRegistration = async (req, res) => {
       return response.error(res, error.message, 404);
     }
     if (error.message === "Team name is required for group registrations") {
+      return response.error(res, error.message, 400);
+    }
+    if (error.message === "Nama tim sudah digunakan dalam kategori lomba ini") {
       return response.error(res, error.message, 400);
     }
     return response.error(res, "Failed to update registration", 500, error.message);

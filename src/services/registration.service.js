@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, ilike } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, ilike, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -9,8 +9,10 @@ const updaterUser = alias(schema.User, "updaterUser");
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
-  const { page = 1, limit = 10, category_id, user_id, is_verified, search } = filters;
-  const skip = (page - 1) * Number(limit);
+  const { category_id, user_id, is_verified, search } = filters;
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
   
@@ -55,7 +57,7 @@ export const getAllRegistrations = async (filters = {}) => {
       .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.Registration.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
@@ -80,6 +82,7 @@ export const getAllRegistrations = async (filters = {}) => {
           final_deadline: row.Category.final_deadline,
           is_submission_open: row.Category.is_submission_open,
           allow_revision: row.Category.allow_revision,
+          whatsapp_group_url: row.Category.whatsapp_group_url,
         }
       : null,
     created_by_name: row.creator?.name || row.Registration.created_by || "-",
@@ -92,9 +95,9 @@ export const getAllRegistrations = async (filters = {}) => {
     registrations,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     },
   };
 };
@@ -136,10 +139,45 @@ export const getRegistrationById = async (id) => {
           final_deadline: row.Category.final_deadline,
           is_submission_open: row.Category.is_submission_open,
           allow_revision: row.Category.allow_revision,
+          whatsapp_group_url: row.Category.whatsapp_group_url,
         }
       : null,
     created_by_name: row.creator?.name || row.Registration.created_by || "-",
     updated_by_name: row.updater?.name || row.Registration.updated_by || "-",
+  };
+};
+
+// Check team name availability within a category
+export const checkTeamNameAvailability = async (categoryId, teamName, excludeRegistrationId = null) => {
+  if (!categoryId || !teamName || typeof teamName !== "string" || !teamName.trim()) {
+    return { available: true, message: "Nama tim harus diisi" };
+  }
+
+  const trimmedTeamName = teamName.trim();
+  const conditions = [
+    eq(schema.Registration.category_id, categoryId),
+    sql`LOWER(TRIM(${schema.Registration.team_name})) = LOWER(${trimmedTeamName})`,
+  ];
+
+  if (excludeRegistrationId) {
+    conditions.push(ne(schema.Registration.registration_id, excludeRegistrationId));
+  }
+
+  const [existing] = await db
+    .select({
+      registration_id: schema.Registration.registration_id,
+      team_name: schema.Registration.team_name,
+    })
+    .from(schema.Registration)
+    .where(and(...conditions))
+    .limit(1);
+
+  return {
+    available: !existing,
+    team_name: trimmedTeamName,
+    message: existing
+      ? "Nama tim sudah digunakan dalam kategori lomba ini"
+      : "Nama tim tersedia",
   };
 };
 
@@ -177,13 +215,24 @@ export const createRegistration = async (registrationData) => {
     throw new Error("Team name is required for group registrations");
   }
 
+  // Validate unique team name within this category
+  if (registrationData.team_name && registrationData.team_name.trim()) {
+    const nameCheck = await checkTeamNameAvailability(
+      registrationData.category_id,
+      registrationData.team_name
+    );
+    if (!nameCheck.available) {
+      throw new Error("Nama tim sudah digunakan dalam kategori lomba ini");
+    }
+  }
+
   const newId = generateCuid();
   await db.insert(schema.Registration).values({
     registration_id: newId,
     user_id: registrationData.user_id,
     category_id: registrationData.category_id,
     file_url: registrationData.file_url,
-    team_name: registrationData.team_name || null,
+    team_name: registrationData.team_name ? registrationData.team_name.trim() : null,
     team_members: registrationData.team_members || null,
     is_verified: registrationData.is_verified || false,
     feedback: registrationData.feedback || null,
@@ -218,10 +267,26 @@ export const updateRegistration = async (id, registrationData, updatedBy = null)
     throw new Error("Team name is required for group registrations");
   }
 
+  // Validate unique team name within this category if team_name is updated
+  if (registrationData.team_name && registrationData.team_name.trim()) {
+    const categoryId = registration.Registration?.category_id || registration.category_id;
+    const nameCheck = await checkTeamNameAvailability(
+      categoryId,
+      registrationData.team_name,
+      id
+    );
+    if (!nameCheck.available) {
+      throw new Error("Nama tim sudah digunakan dalam kategori lomba ini");
+    }
+  }
+
   const updatePayload = {
     ...registrationData,
     updated_at: new Date(),
   };
+  if (updatePayload.team_name) {
+    updatePayload.team_name = updatePayload.team_name.trim();
+  }
   if (updatedBy) {
     updatePayload.updated_by = updatedBy;
   }

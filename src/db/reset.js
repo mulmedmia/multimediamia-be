@@ -10,6 +10,13 @@ import bcrypt from "bcrypt";
 dotenv.config();
 
 async function resetAndMigrate() {
+  // Hard safety guard: Prevent catastrophic wiping of production database
+  if (process.env.NODE_ENV === "production" || process.env.DATABASE_URL?.includes("prod")) {
+    console.error("⛔ DANGER: Database reset operation is strictly prohibited in production!");
+    console.error("Set NODE_ENV to development if you really intend to reset a local scratch database.");
+    process.exit(1);
+  }
+
   console.log(" Wiping database schema...");
   const client = new Client({
     connectionString: process.env.DATABASE_URL,

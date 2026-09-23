@@ -19,17 +19,17 @@ export const generalLimiter = rateLimit({
     // Lewatkan root dan endpoint health check
     if (req.path === "/" || req.path === "/health") return true;
 
-    // Lewatkan request dari Admin atau Juri yang sudah terautentikasi agar aktivitas penjurian & pengelolaan data tidak terblokir
+    // Lewatkan request dari Admin atau Juri yang sudah terautentikasi dan memiliki signature valid
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith("Bearer ")) {
       try {
         const token = authHeader.split(" ")[1];
-        const decoded = jwt.decode(token);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (decoded && (decoded.role === "ADMIN" || decoded.role === "JURI")) {
           return true;
         }
       } catch {
-        // Jika decode gagal, tetap terapkan limiter biasa
+        // Jika verifikasi token gagal, tetap terapkan limiter biasa
       }
     }
 

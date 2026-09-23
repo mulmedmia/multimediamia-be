@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
 import dotenv from "dotenv";
 import morgan from "morgan";
 import router from "./src/routes/index.routes.js";
@@ -13,14 +15,55 @@ dotenv.config();
 
 const app = express();
 
+// Disable X-Powered-By header for security (MIA-SEC-007)
+app.disable("x-powered-by");
+
 // Trust reverse proxy (Render, Vercel, Cloudflare) to accurately capture real client IP
 app.set("trust proxy", 1);
 
+// Baseline HTTP Security Headers using Helmet (MIA-SEC-007)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    contentSecurityPolicy: false, // Handled by frontend Next.js CSP
+  })
+);
+
+// HTTP Response Compression for Gzip / Deflate (Bandwidth optimization)
+app.use(
+  compression({
+    filter: (req, res) => {
+      if (req.headers["x-no-compression"]) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+    threshold: 1024, // Only compress responses above 1KB
+  })
+);
+
+// Whitelisted CORS configuration (MIA-SEC-007)
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+  : [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "https://mia2026.com",
+      "https://www.mia2026.com",
+    ];
+
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      // Allow non-browser requests (Postman, server-to-server, health check) or development origins
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS policy does not allow access from this origin."));
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
@@ -36,7 +79,12 @@ app.get("/health", (req, res) => {
 // Terapkan rate limiter umum
 app.use(generalLimiter);
 
-app.use(morgan("dev"));
+// Logging: Skip endpoint /health agar tidak membanjiri log stdout
+app.use(
+  morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
+    skip: (req) => req.url === "/health",
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
