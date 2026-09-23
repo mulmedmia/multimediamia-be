@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, gte, lte } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, gte, lte, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -14,6 +14,7 @@ export const getAllProducts = async (filters = {}) => {
     limit = 10,
     search,
     category_id,
+    exact,
     min_price,
     max_price,
     is_active,
@@ -23,7 +24,21 @@ export const getAllProducts = async (filters = {}) => {
   const conditions = [];
 
   if (category_id) {
-    conditions.push(eq(schema.product.category_id, category_id));
+    if (category_id.toLowerCase() === "global") {
+      conditions.push(isNull(schema.product.category_id));
+    } else if (category_id.toLowerCase() === "all") {
+      // All categories, no filter
+    } else if (exact === "true" || exact === true) {
+      conditions.push(eq(schema.product.category_id, category_id));
+    } else {
+      // Include products specifically for this category AND global products
+      conditions.push(
+        or(
+          eq(schema.product.category_id, category_id),
+          isNull(schema.product.category_id)
+        )
+      );
+    }
   }
 
   if (search) {
@@ -141,7 +156,12 @@ export const createProduct = async (productData, userId = null) => {
     .insert(schema.product)
     .values({
       product_id: newId,
-      category_id: productData.category_id || null,
+      category_id:
+        !productData.category_id ||
+        productData.category_id === "ALL" ||
+        productData.category_id === "all"
+          ? null
+          : productData.category_id,
       name: productData.name,
       description: productData.description,
       price: Number(productData.price),
@@ -176,7 +196,14 @@ export const updateProduct = async (id, productData, userId = null) => {
   if (userId) {
     updateFields.updated_by = userId;
   }
-  if (updateFields.category_id !== undefined) updateFields.category_id = updateFields.category_id || null;
+  if (updateFields.category_id !== undefined) {
+    updateFields.category_id =
+      !updateFields.category_id ||
+      updateFields.category_id === "ALL" ||
+      updateFields.category_id === "all"
+        ? null
+        : updateFields.category_id;
+  }
   if (updateFields.price !== undefined) updateFields.price = Number(updateFields.price);
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);

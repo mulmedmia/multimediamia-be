@@ -185,6 +185,7 @@ export const reviewSubmissionById = async (req, res) => {
     }
     if (
       error.message === "Submission has already been approved" ||
+      error.message === "Submission has already been rejected and cannot be modified" ||
       error.message.startsWith("awarded_xp must be between") ||
       error.message.startsWith("awarded_diamond must be between")
     ) {

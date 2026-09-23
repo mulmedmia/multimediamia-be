@@ -55,6 +55,7 @@ export const getProducts = async (req, res) => {
       limit: req.query.limit,
       search: req.query.search,
       category_id: req.query.category_id,
+      exact: req.query.exact,
       min_price: req.query.min_price,
       max_price: req.query.max_price,
       is_active: req.query.is_active,

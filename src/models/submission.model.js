@@ -67,14 +67,4 @@ export const updateSubmissionStatusSchema = z.object({
   is_verified: z.boolean().optional(),
 });
 
-// Schema for admin/juri to update submission score and feedback
-export const updateSubmissionScoreFeedbackSchema = z.object({
-  score: z.coerce
-    .number({ invalid_type_error: "Score must be a number" })
-    .min(0, "Score must be at least 0")
-    .max(100, "Score must not exceed 100")
-    .nullable()
-    .optional(),
-  feedback: z.string().optional(),
-});
 

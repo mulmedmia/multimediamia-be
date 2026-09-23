@@ -109,7 +109,7 @@ export const getLeaderboardByCategory = async (req, res) => {
   try {
     const { category_id } = req.params;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
 
     const whereClause = and(
@@ -122,9 +122,7 @@ export const getLeaderboardByCategory = async (req, res) => {
         .select({
           registration: schema.Registration,
           user: {
-            users_id: schema.User.users_id,
             name: schema.User.name,
-            email: schema.User.email,
           },
           category: {
             category_id: schema.Category.category_id,
@@ -225,6 +223,7 @@ export const getAllRedeemUserController = async (req, res) => {
       search: req.query.search,
       user_id: req.query.user_id,
       product_id: req.query.product_id,
+      category_id: req.query.category_id,
     };
 
     const result = await getAllRedeemUser(filters);

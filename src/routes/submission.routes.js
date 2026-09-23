@@ -7,22 +7,23 @@ import {
   updateExistingSubmission,
   deleteSubmissionById,
   updateSubmissionStatusById,
-  updateSubmissionScoreFeedbackById,
 } from "../controllers/submission.controller.js";
 import {
   authenticateToken,
+  optionalAuth,
   isAdmin,
-  isJuri,
 } from "../middleware/jwtAuth.js";
 
 const router = Router();
 
-// Public routes
-router.get("/:id", getSubmission);
-router.get("/", getSubmissions);
-
 // User routes (authenticated)
 router.get("/my/submissions", authenticateToken, getMySubmissions);
+
+// Public / visitor routes (with optional auth to detect Admin / Juri)
+router.get("/", optionalAuth, getSubmissions);
+router.get("/:id", optionalAuth, getSubmission);
+
+// User CRUD routes (authenticated)
 router.post("/", authenticateToken, createNewSubmission);
 router.patch("/:id", authenticateToken, updateExistingSubmission);
 router.delete("/:id", authenticateToken, deleteSubmissionById);
@@ -34,14 +35,6 @@ router.patch(
   authenticateToken,
   isAdmin,
   updateSubmissionStatusById
-);
-
-// Juri & Admin routes (Fixes QA-05 by allowing both Admin and JURI roles to add scores/feedback)
-router.patch(
-  "/:id/score-feedback",
-  authenticateToken,
-  isJuri,
-  updateSubmissionScoreFeedbackById
 );
 
 export default router;

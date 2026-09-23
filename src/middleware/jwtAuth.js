@@ -19,6 +19,22 @@ export const authenticateToken = (req, res, next) => {
   }
 };
 
+// Optional auth: attaches req.user if valid token provided, but does not block if not
+export const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (token) {
+    try {
+      const user = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = user;
+    } catch {
+      // Ignore token errors for optional auth
+    }
+  }
+  next();
+};
+
 // Check if user is admin
 export const isAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== "ADMIN") {
@@ -27,10 +43,10 @@ export const isAdmin = (req, res, next) => {
   next();
 };
 
-// Check if user is admin or mentor
+// Check if user is juri
 export const isJuri = (req, res, next) => {
-  if (!req.user || (req.user.role !== "ADMIN" && req.user.role !== "JURI")) {
-    return response.error(res, "Forbidden: Admin or JURI access required", 403);
+  if (!req.user || req.user.role !== "JURI") {
+    return response.error(res, "Forbidden: JURI access required", 403);
   }
   next();
 };

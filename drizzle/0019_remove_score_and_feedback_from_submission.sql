@@ -1,0 +1,2 @@
+ALTER TABLE "Submission" DROP COLUMN IF EXISTS "score";
+ALTER TABLE "Submission" DROP COLUMN IF EXISTS "feedback";

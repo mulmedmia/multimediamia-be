@@ -147,8 +147,10 @@ export const updateUserProfile = async (userId, updateData, actingUserId = null)
 
 // Get all users (admin only)
 export const getAllUsers = async (filters = {}) => {
-  const { page = 1, limit = 10, search, role } = filters;
-  const skip = (page - 1) * Number(limit);
+  const { search, role } = filters;
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
 
@@ -189,7 +191,7 @@ export const getAllUsers = async (filters = {}) => {
       .leftJoin(updaterUser, eq(schema.User.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.User.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
@@ -209,9 +211,9 @@ export const getAllUsers = async (filters = {}) => {
     users: formattedUsers,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     },
   };
 };

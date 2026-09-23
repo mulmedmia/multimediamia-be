@@ -138,6 +138,7 @@ export const createCategory = async (categoryData, userId) => {
     allow_revision: categoryData.allow_revision !== undefined ? (categoryData.allow_revision === true || categoryData.allow_revision === "true") : false,
     image: categoryData.image,
     file_url: categoryData.file_url || null,
+    whatsapp_group_url: categoryData.whatsapp_group_url || null,
     team_type: categoryData.team_type || "INDIVIDUAL",
     status: categoryData.status,
     created_by: userId,
@@ -191,6 +192,12 @@ export const updateCategory = async (id, categoryData, userId = null) => {
   if (updatedData.allow_revision !== undefined) {
     updatedData.allow_revision = updatedData.allow_revision === true || updatedData.allow_revision === "true";
   }
+  if (updatedData.is_show_it_open !== undefined) {
+    updatedData.is_show_it_open = updatedData.is_show_it_open === true || updatedData.is_show_it_open === "true";
+  }
+  if (updatedData.whatsapp_group_url === "") {
+    updatedData.whatsapp_group_url = null;
+  }
 
   await db
     .update(schema.Category)
@@ -234,6 +241,42 @@ export const toggleCategorySubmission = async (id, options = {}, userId = null) 
   const updateFields = {
     is_submission_open: newIsOpen,
     allow_revision: newAllowRevision,
+    updated_at: new Date(),
+  };
+  if (userId) {
+    updateFields.updated_by = userId;
+  }
+
+  await db
+    .update(schema.Category)
+    .set(updateFields)
+    .where(eq(schema.Category.category_id, id));
+
+  return await getCategoryById(id);
+};
+
+// Toggle Show It visibility for category (admin only)
+export const toggleCategoryShowIt = async (id, options = {}, userId = null) => {
+  const [existing] = await db
+    .select()
+    .from(schema.Category)
+    .where(eq(schema.Category.category_id, id))
+    .limit(1);
+
+  if (!existing) {
+    throw new Error("Category not found");
+  }
+
+  let newIsOpen;
+  if (options.is_show_it_open !== undefined) {
+    newIsOpen = options.is_show_it_open === true || options.is_show_it_open === "true";
+  } else {
+    // If currently open, toggle to false; if closed, toggle to true
+    newIsOpen = !existing.is_show_it_open;
+  }
+
+  const updateFields = {
+    is_show_it_open: newIsOpen,
     updated_at: new Date(),
   };
   if (userId) {
