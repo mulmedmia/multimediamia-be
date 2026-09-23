@@ -31,22 +31,24 @@ export const upload = multer({
   },
 });
 
-// Handle image upload to ImageKit with automatic AVIF conversion
+// Handle image upload to ImageKit with high-speed WebP conversion and auto-resize
 const uploadToImageKit = async (file) => {
   let fileBuffer = file.buffer;
   let fileName = `${Date.now()}_${file.originalname}`;
 
   try {
-    // Convert image buffer (PNG, JPG, WEBP, etc.) to AVIF
-    const avifBuffer = await sharp(file.buffer)
-      .avif({ quality: 80, effort: 4 })
+    // Resize down jika dimensi melebihi 1920px dan encode ke WebP (effort: 2)
+    // WebP diproses dalam ~150ms vs AVIF 45-60s pada CPU Render free tier
+    const webpBuffer = await sharp(file.buffer)
+      .resize({ width: 1920, withoutEnlargement: true })
+      .webp({ quality: 80, effort: 2 })
       .toBuffer();
 
-    fileBuffer = avifBuffer;
+    fileBuffer = webpBuffer;
     const baseName = path.parse(file.originalname).name || "banner";
-    fileName = `${Date.now()}_${baseName}.avif`;
+    fileName = `${Date.now()}_${baseName}.webp`;
   } catch (conversionError) {
-    console.warn("Failed to convert image to AVIF, uploading original buffer:", conversionError.message);
+    console.warn("Failed to convert image to WebP, uploading original buffer:", conversionError.message);
   }
 
   // Convert file buffer to base64
