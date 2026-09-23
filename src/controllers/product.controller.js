@@ -14,23 +14,24 @@ import path from "path";
 import sharp from "sharp";
 import imagekit from "../lib/imagekit.js";
 
-// Handle image upload to ImageKit with automatic AVIF conversion
+// Handle image upload to ImageKit with high-speed WebP conversion and auto-resize
 const uploadToImageKit = async (file) => {
   let fileBuffer = file.buffer;
   let fileName = `${Date.now()}_${file.originalname}`;
 
   try {
-    // Convert image buffer (PNG, JPG, WEBP, etc.) to AVIF
-    const avifBuffer = await sharp(file.buffer)
-      .avif({ quality: 80, effort: 4 })
+    // Resize down jika dimensi melebihi 1920px dan encode ke WebP (effort: 2)
+    const webpBuffer = await sharp(file.buffer)
+      .resize({ width: 1920, withoutEnlargement: true })
+      .webp({ quality: 80, effort: 2 })
       .toBuffer();
 
-    fileBuffer = avifBuffer;
+    fileBuffer = webpBuffer;
     const baseName = path.parse(file.originalname).name || "product";
-    fileName = `${Date.now()}_${baseName}.avif`;
+    fileName = `${Date.now()}_${baseName}.webp`;
   } catch (conversionError) {
     console.warn(
-      "Failed to convert product image to AVIF, uploading original buffer:",
+      "Failed to convert product image to WebP, uploading original buffer:",
       conversionError.message
     );
   }
