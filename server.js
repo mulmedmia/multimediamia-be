@@ -43,24 +43,36 @@ app.use(
 );
 
 // Whitelisted CORS configuration (MIA-SEC-007)
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "https://mia2026.com",
-      "https://www.mia2026.com",
-    ];
+const defaultOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://mia2026.com",
+  "https://www.mia2026.com",
+  "https://multimediainaction.id",
+  "https://www.multimediainaction.id",
+];
+
+const envOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim().replace(/\/+$/, "").toLowerCase())
+  : [];
+
+const allowedOrigins = Array.from(
+  new Set([...defaultOrigins.map((o) => o.replace(/\/+$/, "").toLowerCase()), ...envOrigins])
+);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow non-browser requests (Postman, server-to-server, health check)
+      // Allow non-browser requests (Postman, server-to-server, health check, mobile apps)
       if (!origin) return callback(null, true);
 
+      const normalizedOrigin = origin.replace(/\/+$/, "").toLowerCase();
+
       // Check if origin is explicitly whitelisted, matches Vercel deployment, or in dev mode
-      const isVercel = /^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin);
-      if (allowedOrigins.includes(origin) || isVercel || process.env.NODE_ENV !== "production") {
+      const isVercel = /^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(normalizedOrigin);
+      const isAllowed = allowedOrigins.includes(normalizedOrigin);
+
+      if (isAllowed || isVercel || process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
       return callback(new Error("CORS policy does not allow access from this origin."));
