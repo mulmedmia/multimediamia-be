@@ -7,10 +7,14 @@ import {
   deleteRegistrationById,
   verifyRegistrationByAdmin,
   giveRegistrationFeedback,
+  checkTeamNameAvailabilityController,
 } from "../controllers/registration.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
 
 const router = Router();
+
+// Check team name availability (must be placed before /:id)
+router.get("/check-team-name", authenticateToken, checkTeamNameAvailabilityController);
 
 // Get routes (authenticated users can fetch registrations; non-admin users get automatically filtered to their own registrations)
 router.get("/", authenticateToken, getRegistrations);

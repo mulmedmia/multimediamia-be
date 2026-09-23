@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, ilike, and, sql, desc } from "drizzle-orm";
+import { eq, or, ilike, and, sql, desc, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -46,7 +46,11 @@ export const getAllMissions = async (filters = {}) => {
   const conditions = [];
 
   if (category_id) {
-    conditions.push(eq(schema.Mission.category_id, category_id));
+    if (category_id.toLowerCase() === "global") {
+      conditions.push(isNull(schema.Mission.category_id));
+    } else {
+      conditions.push(eq(schema.Mission.category_id, category_id));
+    }
   }
 
   if (search) {
@@ -232,7 +236,11 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
   }
 
   if (category_id) {
-    conditions.push(eq(schema.Mission.category_id, category_id));
+    if (category_id.toLowerCase() === "global") {
+      conditions.push(isNull(schema.Mission.category_id));
+    } else {
+      conditions.push(eq(schema.Mission.category_id, category_id));
+    }
   }
 
   if (status) {
@@ -363,7 +371,12 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
 export const getActiveMissionsForUser = async (userId, categoryId = null) => {
   const whereConditions = [eq(schema.Mission.status, "ACTIVE")];
   if (categoryId) {
-    whereConditions.push(eq(schema.Mission.category_id, categoryId));
+    whereConditions.push(
+      or(
+        eq(schema.Mission.category_id, categoryId),
+        isNull(schema.Mission.category_id)
+      )
+    );
   }
 
   // Query semua misi ACTIVE, left join dengan submission milik user dan kategori
@@ -625,9 +638,13 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
 
   const { submission, mission } = row;
 
-  // 2. Cegah double approval (jika sudah APPROVED, tolak agar tidak double reward)
+  // 2. Cegah double approval dan modifikasi submission yang sudah final (APPROVED / REJECTED)
   if (submission.status === "APPROVED") {
     throw new Error("Submission has already been approved");
+  }
+
+  if (submission.status === "REJECTED") {
+    throw new Error("Submission has already been rejected and cannot be modified");
   }
 
   // 3. Logika untuk status REJECTED
@@ -708,7 +725,7 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
       regConditions.push(eq(schema.Registration.category_id, mission.category_id));
     }
 
-    const [updatedReg] = await tx
+    const updatedRegs = await tx
       .update(schema.Registration)
       .set(regUpdatePayload)
       .where(and(...regConditions))
@@ -716,7 +733,8 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
 
     return {
       submission: updatedSub,
-      registration: updatedReg,
+      registration: updatedRegs[0] || null,
+      registrations: updatedRegs,
     };
   });
 

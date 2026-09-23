@@ -4,3 +4,5 @@ node_modules
 .env.production
 # ignore prisma migrations
 prisma/migrations
+# ignore database backups
+backups/

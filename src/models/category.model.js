@@ -9,6 +9,13 @@ export const createCategorySchema = z.object({
     .transform((val) => val.trim().toUpperCase()),
   name: z.string().min(3, "Nama perlombaan minimal 3 karakter"),
   file_url: z.string().url("Link guidebook harus berupa URL yang valid").optional(),
+  whatsapp_group_url: z
+    .string()
+    .url("Link grup WhatsApp harus berupa URL yang valid")
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val === "" ? null : val)),
   organizer: z.string().min(3, "Penyelenggara minimal 3 karakter"),
   description: z.string().min(10, "Deskripsi minimal 10 karakter"),
   deadline: z.string().datetime({ message: "Format deadline tidak valid" }).optional(),
@@ -34,6 +41,13 @@ export const updateCategorySchema = z.object({
     .optional(),
   name: z.string().min(3, "Nama perlombaan minimal 3 karakter").optional(),
   file_url: z.string().url("Link guidebook harus berupa URL yang valid").optional(),
+  whatsapp_group_url: z
+    .string()
+    .url("Link grup WhatsApp harus berupa URL yang valid")
+    .optional()
+    .nullable()
+    .or(z.literal(""))
+    .transform((val) => (val === "" ? null : val)),
   organizer: z
     .string()
     .min(3, "Penyelenggara minimal 3 karakter")

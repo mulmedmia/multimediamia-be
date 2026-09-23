@@ -6,6 +6,7 @@ import {
   updateExistingCategory,
   deleteCategoryById,
   toggleSubmissionStatus,
+  toggleShowItStatus,
   upload,
 } from "../controllers/category.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
@@ -32,6 +33,14 @@ router.patch(
   authenticateToken,
   isAdmin,
   toggleSubmissionStatus
+);
+
+// Toggle Show It visibility
+router.patch(
+  "/:id/toggle-show-it",
+  authenticateToken,
+  isAdmin,
+  toggleShowItStatus
 );
 
 // Update category with optional image upload using PATCH

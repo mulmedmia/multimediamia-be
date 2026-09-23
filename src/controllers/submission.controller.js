@@ -12,9 +12,7 @@ import {
   createSubmissionSchema,
   updateSubmissionSchema,
   updateSubmissionStatusSchema,
-  updateSubmissionScoreFeedbackSchema,
 } from "../models/submission.model.js";
-import { updateSubmissionScoreFeedback } from "../services/submission.service.js";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 import { eq } from "drizzle-orm";
@@ -28,9 +26,13 @@ const getJuriCategory = async (userId) => {
   return juri ? juri.category_id : null;
 };
 
-// Get all submissions (admin/mentor)
+// Get all submissions (admin/mentor/show-it public)
 export const getSubmissions = async (req, res) => {
   try {
+    const isStaff = req.user && (req.user.role === "ADMIN" || req.user.role === "JURI");
+    const isShowItExplicit = req.query.show_it === "true" || req.query.show_it === true;
+    const isShowIt = isShowItExplicit || !isStaff;
+
     const filters = {
       page: req.query.page,
       limit: req.query.limit,
@@ -39,6 +41,8 @@ export const getSubmissions = async (req, res) => {
       status: req.query.status,
       is_verified: req.query.is_verified,
       search: req.query.search,
+      show_it: isShowIt,
+      isStaff,
     };
 
     const result = await getAllSubmissions(filters);
@@ -83,14 +87,19 @@ export const getMySubmissions = async (req, res) => {
 // Get submission by ID
 export const getSubmission = async (req, res) => {
   try {
-    const submission = await getSubmissionById(req.params.id);
+    const isStaff = req.user && (req.user.role === "ADMIN" || req.user.role === "JURI");
+    const userId = req.user?.userId;
+    const submission = await getSubmissionById(req.params.id, { isStaff, userId });
     return response.success(
       res,
       submission,
       "Submission retrieved successfully"
     );
   } catch (error) {
-    if (error.message === "Submission not found") {
+    if (
+      error.message === "Submission not found" ||
+      error.message === "Karya belum dipublikasikan di Show It"
+    ) {
       return response.error(res, error.message, 404);
     }
     return response.error(
@@ -147,7 +156,7 @@ export const updateExistingSubmission = async (req, res) => {
 
     // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
     if (userRole === "JURI") {
-      const submission = await getSubmissionById(submissionId);
+      const submission = await getSubmissionById(submissionId, { isInternal: true });
       const assignedCategoryId = await getJuriCategory(userId);
       if (
         !assignedCategoryId ||
@@ -251,45 +260,3 @@ export const updateSubmissionStatusById = async (req, res) => {
   }
 };
 
-// Update submission score and feedback (admin/juri)
-export const updateSubmissionScoreFeedbackById = async (req, res) => {
-  try {
-    const submissionId = req.params.id;
-
-    // Jika pemanggil adalah JURI, pastikan submission berada di kategori yang diampu
-    if (req.user && req.user.role === "JURI") {
-      const submission = await getSubmissionById(submissionId);
-      const assignedCategoryId = await getJuriCategory(req.user.userId);
-      if (
-        !assignedCategoryId ||
-        submission.category_id !== assignedCategoryId
-      ) {
-        return response.error(
-          res,
-          "Forbidden: You can only score submissions in your assigned category",
-          403
-        );
-      }
-    }
-
-    const validation = updateSubmissionScoreFeedbackSchema.safeParse(req.body);
-    if (!validation.success) {
-      return response.validation(res, validation.error.format());
-    }
-
-    const updated = await updateSubmissionScoreFeedback(
-      submissionId,
-      validation.data,
-      req.user?.userId
-    );
-    return response.success(res, updated, "Score & feedback updated successfully");
-  } catch (error) {
-    if (error.message === "Submission not found") {
-      return response.error(res, error.message, 404);
-    }
-    if (error.message === "Score must be between 0 and 100") {
-      return response.error(res, error.message, 400);
-    }
-    return response.error(res, "Failed to update score/feedback", 500, error.message);
-  }
-};

@@ -10,26 +10,33 @@ const updaterUser = alias(schema.User, "updaterUser");
 // Get all submissions with filtering
 export const getAllSubmissions = async (filters = {}) => {
   const {
-    page = 1,
-    limit = 10,
     category_id,
     user_id,
     status,
     is_verified,
     search,
+    show_it = false,
+    isStaff = false,
   } = filters;
-  const skip = (page - 1) * Number(limit);
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
+
+  // Jika show_it aktif (publik), karya WAJIB APPROVED dan is_verified (Tampilkan di Show It)
+  if (show_it) {
+    conditions.push(eq(schema.Submission.status, "APPROVED"));
+    conditions.push(eq(schema.Submission.is_verified, true));
+  } else if (status) {
+    conditions.push(eq(schema.Submission.status, status));
+  }
 
   if (category_id) {
     conditions.push(eq(schema.Submission.category_id, category_id));
   }
   if (user_id) {
     conditions.push(eq(schema.Submission.user_id, user_id));
-  }
-  if (status) {
-    conditions.push(eq(schema.Submission.status, status));
   }
   if (is_verified !== undefined) {
     conditions.push(eq(schema.Submission.is_verified, is_verified === "true" || is_verified === true));
@@ -53,14 +60,16 @@ export const getAllSubmissions = async (filters = {}) => {
       .select({ submission_id: schema.Submission.submission_id })
       .from(schema.Submission)
       .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
       .where(whereClause)
       .orderBy(desc(schema.Submission.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
       .from(schema.Submission)
       .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
       .where(whereClause),
   ]);
 
@@ -71,9 +80,9 @@ export const getAllSubmissions = async (filters = {}) => {
       submissions: [],
       meta: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
       },
     };
   }
@@ -97,13 +106,20 @@ export const getAllSubmissions = async (filters = {}) => {
     .leftJoin(updaterUser, eq(schema.Submission.updated_by, updaterUser.users_id))
     .where(inArray(schema.Submission.submission_id, submissionIds));
 
+  const isPublicView = show_it || !isStaff;
   const submissionMap = {};
   for (const row of details) {
     const subId = row.Submission.submission_id;
     if (!submissionMap[subId]) {
       submissionMap[subId] = {
         ...row.Submission,
-        user: row.User ? { name: row.User.name, email: row.User.email } : null,
+        // Hapus email kontak untuk publik / show-it
+        user: row.User
+          ? {
+              name: row.User.name,
+              ...(isPublicView ? {} : { email: row.User.email }),
+            }
+          : null,
         category: row.Category
           ? {
               ...row.Category,
@@ -112,8 +128,8 @@ export const getAllSubmissions = async (filters = {}) => {
               category_name: row.Category.name,
             }
           : null,
-        created_by_name: row.creator?.name || row.Submission.created_by || "-",
-        updated_by_name: row.updater?.name || row.Submission.updated_by || "-",
+        created_by_name: isPublicView ? undefined : (row.creator?.name || row.Submission.created_by || "-"),
+        updated_by_name: isPublicView ? undefined : (row.updater?.name || row.Submission.updated_by || "-"),
         links: [],
       };
     }
@@ -128,15 +144,18 @@ export const getAllSubmissions = async (filters = {}) => {
     submissions,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     },
   };
 };
 
 // Get submission by ID
-export const getSubmissionById = async (id) => {
+export const getSubmissionById = async (
+  id,
+  { isStaff = false, userId = null, isInternal = false } = {}
+) => {
   const details = await db
     .select({
       Submission: schema.Submission,
@@ -158,19 +177,39 @@ export const getSubmissionById = async (id) => {
     throw new Error("Submission not found");
   }
 
+  const category = details[0].Category;
+  const isOwner = Boolean(userId && details[0].Submission.user_id === userId);
+  const isPublicView = !isStaff && !isOwner && !isInternal;
+
+  if (isPublicView) {
+    // Publik / pengunjung Show It: Cek apakah submission berstatus APPROVED dan is_verified (Tampilkan di Show It)
+    if (
+      details[0].Submission.status !== "APPROVED" ||
+      !details[0].Submission.is_verified
+    ) {
+      throw new Error("Karya belum dipublikasikan di Show It");
+    }
+  }
+
   const submission = {
     ...details[0].Submission,
-    user: details[0].User ? { name: details[0].User.name, email: details[0].User.email } : null,
-    category: details[0].Category
+    // Hapus email kontak untuk publik / show-it
+    user: details[0].User
       ? {
-          ...details[0].Category,
-          name: details[0].Category.name,
-          slug: details[0].Category.slug,
-          category_name: details[0].Category.name,
+          name: details[0].User.name,
+          ...(isPublicView ? {} : { email: details[0].User.email }),
         }
       : null,
-    created_by_name: details[0].creator?.name || details[0].Submission.created_by || "-",
-    updated_by_name: details[0].updater?.name || details[0].Submission.updated_by || "-",
+    category: category
+      ? {
+          ...category,
+          name: category.name,
+          slug: category.slug,
+          category_name: category.name,
+        }
+      : null,
+    created_by_name: isPublicView ? undefined : (details[0].creator?.name || details[0].Submission.created_by || "-"),
+    updated_by_name: isPublicView ? undefined : (details[0].updater?.name || details[0].Submission.updated_by || "-"),
     links: [],
   };
 
@@ -187,8 +226,10 @@ export const getSubmissionById = async (id) => {
 
 // Get user's submissions
 export const getUserSubmissions = async (userId, filters = {}) => {
-  const { page = 1, limit = 10, category_id, status } = filters;
-  const skip = (page - 1) * Number(limit);
+  const { category_id, status } = filters;
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const skip = (safePage - 1) * safeLimit;
 
   const conditions = [eq(schema.Submission.user_id, userId)];
 
@@ -207,7 +248,7 @@ export const getUserSubmissions = async (userId, filters = {}) => {
       .from(schema.Submission)
       .where(whereClause)
       .orderBy(desc(schema.Submission.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
@@ -222,9 +263,9 @@ export const getUserSubmissions = async (userId, filters = {}) => {
       submissions: [],
       meta: {
         total,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(total / Number(limit)),
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
       },
     };
   }
@@ -266,9 +307,9 @@ export const getUserSubmissions = async (userId, filters = {}) => {
     submissions,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.ceil(total / safeLimit),
     },
   };
 };
@@ -442,7 +483,7 @@ export const createSubmission = async (submissionData, userId) => {
     }
   });
 
-  return await getSubmissionById(newSubId);
+  return await getSubmissionById(newSubId, { isInternal: true });
 };
 
 // Update submission
@@ -460,8 +501,8 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     throw new Error("Submission not found");
   }
 
-  // Check ownership unless requester is ADMIN or JURI
-  if (submission.user_id !== userId && userRole !== "ADMIN" && userRole !== "JURI") {
+  // Check ownership: only the submission owner or ADMIN can update this submission
+  if (submission.user_id !== userId && userRole !== "ADMIN") {
     throw new Error("Unauthorized to update this submission");
   }
 
@@ -541,7 +582,7 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     }
   });
 
-  return await getSubmissionById(id);
+  return await getSubmissionById(id, { isInternal: true });
 };
 
 // Delete submission
@@ -579,8 +620,13 @@ export const updateSubmissionStatus = async (id, statusData, updatedBy = null) =
     throw new Error("Submission not found");
   }
 
+  // Tentukan status efektif: karya hanya boleh ditampilkan di Show It (is_verified = true) jika statusnya APPROVED
+  const effectiveStatus = statusData.status || submission.status;
+  const isVerified = effectiveStatus === "APPROVED" ? Boolean(statusData.is_verified) : false;
+
   const updateFields = {
     ...statusData,
+    is_verified: isVerified,
     updated_at: new Date(),
   };
   if (updatedBy) {
@@ -592,39 +638,5 @@ export const updateSubmissionStatus = async (id, statusData, updatedBy = null) =
     .set(updateFields)
     .where(eq(schema.Submission.submission_id, id));
 
-  return await getSubmissionById(id);
-};
-
-// Update submission score and feedback
-export const updateSubmissionScoreFeedback = async (id, data, updatedBy = null) => {
-  const [submission] = await db
-    .select()
-    .from(schema.Submission)
-    .where(eq(schema.Submission.submission_id, id))
-    .limit(1);
-
-  if (!submission) {
-    throw new Error("Submission not found");
-  }
-
-  if (data.score !== undefined && data.score !== null) {
-    const numericScore = Number(data.score);
-    if (isNaN(numericScore) || numericScore < 0 || numericScore > 100) {
-      throw new Error("Score must be between 0 and 100");
-    }
-  }
-
-  const updateFields = { updated_at: new Date() };
-  if (updatedBy) updateFields.updated_by = updatedBy;
-  if (data.score !== undefined) {
-    updateFields.score = data.score !== null ? Number(data.score) : null;
-  }
-  if (data.feedback !== undefined) updateFields.feedback = data.feedback;
-
-  await db
-    .update(schema.Submission)
-    .set(updateFields)
-    .where(eq(schema.Submission.submission_id, id));
-
-  return await getSubmissionById(id);
+  return await getSubmissionById(id, { isInternal: true });
 };
