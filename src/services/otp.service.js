@@ -67,7 +67,7 @@ export const createOTP = async (email) => {
     } catch (emailError) {
       console.error(`⚠️ [OTP EMAIL FAILED] ${emailError.message}`);
       if (emailError.message.includes("ETIMEDOUT") || emailError.message.includes("timeout")) {
-        console.warn("⚠️ [RENDER SMTP BLOCK] Outbound TCP SMTP (ports 465/587) is blocked by your hosting provider. Set RESEND_API_KEY to send emails via HTTPS API.");
+        console.warn("⚠️ [RENDER SMTP BLOCK] Outbound TCP SMTP (ports 465/587) is blocked by your hosting provider. Set RESEND_API_KEY and/or BREVO_API_KEY to send emails via HTTPS REST API.");
       }
       if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_OTP_FALLBACK !== "true") {
         throw emailError;
