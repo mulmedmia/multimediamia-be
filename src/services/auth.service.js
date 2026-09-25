@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq } from "drizzle-orm";
+import { eq, ilike } from "drizzle-orm";
 import { generateCuid } from "../db/cuid.js";
 
 // User-related database operations
@@ -10,7 +10,7 @@ const findUserByEmail = async (email) => {
   const [user] = await db
     .select()
     .from(schema.User)
-    .where(eq(schema.User.email, email))
+    .where(ilike(schema.User.email, email))
     .limit(1);
   return user || null;
 };
