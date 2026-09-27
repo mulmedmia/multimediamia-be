@@ -1,8 +1,22 @@
 import { z } from "zod";
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(3, "Name must be at least 3 characters").optional(),
-  nim: z.string().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(3, "Name must be at least 3 characters")
+    .max(100, "Name must not exceed 100 characters")
+    .regex(
+      /^[a-zA-Z0-9\s'.,-]+$/,
+      "Name contains invalid characters (no HTML or special symbols allowed)"
+    )
+    .optional(),
+  nim: z
+    .string()
+    .trim()
+    .max(30, "NIM must not exceed 30 characters")
+    .regex(/^[a-zA-Z0-9.-]+$/, "NIM contains invalid characters")
+    .optional(),
   email: z.string().email("Invalid email format").optional(),
   current_password: z.string().min(1, "Current password is required").optional(),
   new_password: z.string().min(6, "New password must be at least 6 characters").optional(),
