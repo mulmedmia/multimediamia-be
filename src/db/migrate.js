@@ -121,7 +121,20 @@ export async function runMigrations() {
     for (let statement of statements) {
       statement = statement.trim();
       if (statement) {
-        await client.query(statement);
+        try {
+          await client.query(statement);
+        } catch (err) {
+          // If the object/table/column/type already exists, log a warning and continue
+          if (
+            err.code === "42710" || // duplicate_object (type already exists)
+            err.code === "42P07" || // duplicate_table
+            err.code === "42701"    // duplicate_column
+          ) {
+            console.warn(` ⚠️ Warning in ${file}: ${err.message} (skipping duplicate)`);
+          } else {
+            throw err;
+          }
+        }
       }
     }
 
