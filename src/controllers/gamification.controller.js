@@ -8,7 +8,7 @@ import {
 import { response } from "../utils/response.js";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, or, ilike } from "drizzle-orm";
 
 // Update user points (Admin - legacy compatibility)
 export const updateUserPointsController = async (req, res) => {
@@ -111,11 +111,23 @@ export const getLeaderboardByCategory = async (req, res) => {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 10));
     const skip = (page - 1) * limit;
+    const search = req.query.search ? req.query.search.trim() : "";
 
-    const whereClause = and(
+    const conditions = [
       eq(schema.Registration.category_id, category_id),
-      eq(schema.Registration.is_verified, true)
-    );
+      eq(schema.Registration.is_verified, true),
+    ];
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(schema.Registration.team_name, `%${search}%`),
+          ilike(schema.User.name, `%${search}%`)
+        )
+      );
+    }
+
+    const whereClause = and(...conditions);
 
     const [rows, [countResult]] = await Promise.all([
       db
@@ -141,6 +153,7 @@ export const getLeaderboardByCategory = async (req, res) => {
       db
         .select({ count: sql`count(*)` })
         .from(schema.Registration)
+        .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
         .where(whereClause),
     ]);
 
