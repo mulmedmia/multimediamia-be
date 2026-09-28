@@ -90,6 +90,13 @@ export async function runMigrations() {
     `);
   }
 
+  // Pastikan 0003_foamy_meltdown.sql ditandai sudah applied jika ada, agar tidak dieksekusi ulang
+  await client.query(`
+    INSERT INTO "__applied_migrations" (name) 
+    VALUES ('0003_foamy_meltdown.sql') 
+    ON CONFLICT (name) DO NOTHING;
+  `);
+
   // Ambil daftar migrasi yang sudah pernah dijalankan
   const appliedRes = await client.query(`SELECT name FROM "__applied_migrations";`);
   const appliedFiles = new Set(appliedRes.rows.map(r => r.name));

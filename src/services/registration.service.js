@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, ilike, ne } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, asc, ilike, ne } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -9,7 +9,7 @@ const updaterUser = alias(schema.User, "updaterUser");
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
-  const { category_id, user_id, is_verified, search } = filters;
+  const { category_id, user_id, is_verified, search, sort_by, order } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
   const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
@@ -41,6 +41,13 @@ export const getAllRegistrations = async (filters = {}) => {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+  let orderByClause = desc(schema.Registration.created_at);
+  if (sort_by === "diamond") {
+    orderByClause = order === "asc" ? asc(schema.Registration.diamond) : desc(schema.Registration.diamond);
+  } else if (sort_by === "xp") {
+    orderByClause = order === "asc" ? asc(schema.Registration.xp) : desc(schema.Registration.xp);
+  }
+
   const [rows, [countResult]] = await Promise.all([
     db
       .select({
@@ -56,7 +63,7 @@ export const getAllRegistrations = async (filters = {}) => {
       .leftJoin(creatorUser, eq(schema.Registration.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
       .where(whereClause)
-      .orderBy(desc(schema.Registration.created_at))
+      .orderBy(orderByClause, desc(schema.Registration.created_at))
       .limit(safeLimit)
       .offset(skip),
     db
@@ -69,7 +76,14 @@ export const getAllRegistrations = async (filters = {}) => {
 
   const registrations = rows.map((row) => ({
     ...row.Registration,
-    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    user: row.User
+      ? {
+          name: row.User.name,
+          email: row.User.email,
+          whatsapp_number: row.User.whatsapp_number,
+          whatsapp: row.User.whatsapp_number,
+        }
+      : null,
     category: row.Category
       ? {
           category_id: row.Category.category_id,
@@ -126,7 +140,14 @@ export const getRegistrationById = async (id) => {
 
   return {
     ...row.Registration,
-    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    user: row.User
+      ? {
+          name: row.User.name,
+          email: row.User.email,
+          whatsapp_number: row.User.whatsapp_number,
+          whatsapp: row.User.whatsapp_number,
+        }
+      : null,
     category: row.Category
       ? {
           category_id: row.Category.category_id,

@@ -6,6 +6,10 @@ import {
   deleteRegistration,
   checkTeamNameAvailability,
 } from "../services/registration.service.js";
+import {
+  validateReferralCode,
+  recordReferralOnRegistration,
+} from "../services/referral.service.js";
 import { response } from "../utils/response.js";
 import { createRegistrationSchema, updateRegistrationSchema } from "../models/registration.model.js";
 import { db } from "../db/index.js";
@@ -14,7 +18,7 @@ import { eq } from "drizzle-orm";
 
 // Helper: Validate Google Drive link
 const isGoogleDriveLink = (url) => {
-  return /^https:\/\/drive\.google\.com\/.+/.test(url);
+  return typeof url === "string" && /^https?:\/\/drive\.google\.com\/.+/.test(url.trim());
 };
 
 // Get all registrations
@@ -27,6 +31,8 @@ export const getRegistrations = async (req, res) => {
       user_id: req.query.user_id,
       is_verified: req.query.is_verified,
       search: req.query.search,
+      sort_by: req.query.sort_by,
+      order: req.query.order,
     };
 
     // Non-admin users are restricted to their own registrations
@@ -63,12 +69,24 @@ export const getRegistration = async (req, res) => {
 // Create new registration (user only - Fixes QA-02 by forcing user_id from token)
 export const createNewRegistration = async (req, res) => {
   try {
-    const { category_id, file_url, team_name, team_members } = req.body;
+    const { category_id, file_url, team_name, team_members, referral_code } = req.body;
     const userId = req.user.userId; // Get from authenticated JWT token
 
+    const trimmedFileUrl = typeof file_url === "string" ? file_url.trim() : file_url;
+    const trimmedTeamName = typeof team_name === "string" ? team_name.trim() : team_name;
+    const trimmedReferralCode = typeof referral_code === "string" ? referral_code.trim() : "";
+
     // Validate Google Drive link
-    if (!file_url || !isGoogleDriveLink(file_url)) {
+    if (!trimmedFileUrl || !isGoogleDriveLink(trimmedFileUrl)) {
       return response.error(res, "file_url must be a valid Google Drive link", 400);
+    }
+
+    // Validate referral code early if provided
+    if (trimmedReferralCode) {
+      const referralCheck = await validateReferralCode(trimmedReferralCode, userId);
+      if (!referralCheck.valid) {
+        return response.error(res, referralCheck.message, 400);
+      }
     }
 
     // Get category to check team_type (Drizzle port)
@@ -86,14 +104,14 @@ export const createNewRegistration = async (req, res) => {
     let registrationData = {
       user_id: userId,
       category_id,
-      file_url,
+      file_url: trimmedFileUrl,
     };
 
     if (category.team_type === "GROUP") {
-      if (!team_name || !team_members) {
+      if (!trimmedTeamName || !team_members) {
         return response.error(res, "team_name and team_members are required for GROUP registration", 400);
       }
-      registrationData.team_name = team_name;
+      registrationData.team_name = trimmedTeamName;
       registrationData.team_members = team_members;
     }
 
@@ -107,6 +125,19 @@ export const createNewRegistration = async (req, res) => {
       ...validation.data,
       is_verified: false,
     });
+
+    // Record referral log if referral code was used
+    if (trimmedReferralCode) {
+      try {
+        await recordReferralOnRegistration(
+          registration.registration_id,
+          trimmedReferralCode,
+          userId
+        );
+      } catch (refErr) {
+        console.error("Gagal mencatat referral log:", refErr);
+      }
+    }
 
     return response.success(res, registration, "Registration submitted successfully", 201);
   } catch (error) {
@@ -169,16 +200,19 @@ export const updateExistingRegistration = async (req, res) => {
       return response.error(res, "Tidak dapat mengedit data tim yang sudah terverifikasi", 400);
     }
 
+    const trimmedFileUrl = typeof file_url === "string" ? file_url.trim() : file_url;
+    const trimmedTeamName = typeof team_name === "string" ? team_name.trim() : team_name;
+
     // Validate Google Drive link if provided
-    if (file_url && !isGoogleDriveLink(file_url)) {
+    if (trimmedFileUrl && !isGoogleDriveLink(trimmedFileUrl)) {
       return response.error(res, "file_url must be a valid Google Drive link", 400);
     }
 
     // Only allow update of file_url, team_name, team_members
     const updateData = {};
-    if (file_url) updateData.file_url = file_url;
-    if (team_name) updateData.team_name = team_name;
-    if (team_members) updateData.team_members = team_members;
+    if (trimmedFileUrl) updateData.file_url = trimmedFileUrl;
+    if (trimmedTeamName !== undefined) updateData.team_name = trimmedTeamName;
+    if (team_members !== undefined) updateData.team_members = team_members;
 
     // Validate data
     const validation = updateRegistrationSchema.safeParse(updateData);

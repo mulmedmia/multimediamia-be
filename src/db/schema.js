@@ -17,6 +17,7 @@ export const linkTypeEnum = pgEnum("LinkType", [
 ]);
 export const missionStatusEnum = pgEnum("MissionStatus", ["ACTIVE", "EXPIRED", "DRAFT"]);
 export const missionSubmissionStatusEnum = pgEnum("MissionSubmissionStatus", ["PENDING", "APPROVED", "REJECTED"]);
+export const referralStatusEnum = pgEnum("ReferralStatus", ["PENDING", "APPROVED", "REJECTED"]);
 
 // User Model Table
 export const User = pgTable("User", {
@@ -27,6 +28,7 @@ export const User = pgTable("User", {
   password: text("password").notNull(),
   role: roleEnum("role").default("USER").notNull(),
   is_verified: boolean("is_verified").default(false).notNull(),
+  whatsapp_number: text("whatsapp_number"),
   created_by: text("created_by"),
   updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
@@ -76,6 +78,7 @@ export const Registration = pgTable(
     feedback: text("feedback"),
     diamond: integer("diamond").default(0).notNull(),
     xp: integer("xp").default(0).notNull(),
+    referral_code: text("referral_code"),
     created_by: text("created_by"),
     updated_by: text("updated_by"),
     created_at: timestamp("created_at").defaultNow().notNull(),
@@ -86,6 +89,7 @@ export const Registration = pgTable(
       table.category_id,
       table.team_name
     ),
+    uniqueIndex("idx_registration_referral_code_unique").on(table.referral_code),
     index("idx_registration_leaderboard").on(
       table.category_id,
       table.is_verified,
@@ -252,3 +256,34 @@ export const AppSetting = pgTable("AppSetting", {
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ReferralLog Model Table
+export const ReferralLog = pgTable(
+  "ReferralLog",
+  {
+    referral_log_id: text("referral_log_id").primaryKey(),
+    referral_code: text("referral_code").notNull(),
+    referrer_registration_id: text("referrer_registration_id")
+      .notNull()
+      .references(() => Registration.registration_id, { onDelete: "cascade" }),
+    referee_registration_id: text("referee_registration_id")
+      .notNull()
+      .references(() => Registration.registration_id, { onDelete: "cascade" }),
+    referrer_xp: integer("referrer_xp").default(250).notNull(),
+    referee_xp: integer("referee_xp").default(100).notNull(),
+    status: referralStatusEnum("status").default("PENDING").notNull(),
+    verified_at: timestamp("verified_at"),
+    verified_by: text("verified_by").references(() => User.users_id),
+    admin_notes: text("admin_notes"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("idx_referral_log_status").on(table.status),
+    index("idx_referral_log_code").on(table.referral_code),
+    index("idx_referral_log_referrer").on(table.referrer_registration_id),
+    index("idx_referral_log_referee").on(table.referee_registration_id),
+    uniqueIndex("idx_referral_log_referee_unique").on(table.referee_registration_id),
+  ]
+);
+
