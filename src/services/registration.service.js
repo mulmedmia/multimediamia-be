@@ -76,7 +76,14 @@ export const getAllRegistrations = async (filters = {}) => {
 
   const registrations = rows.map((row) => ({
     ...row.Registration,
-    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    user: row.User
+      ? {
+          name: row.User.name,
+          email: row.User.email,
+          whatsapp_number: row.User.whatsapp_number,
+          whatsapp: row.User.whatsapp_number,
+        }
+      : null,
     category: row.Category
       ? {
           category_id: row.Category.category_id,
@@ -133,7 +140,14 @@ export const getRegistrationById = async (id) => {
 
   return {
     ...row.Registration,
-    user: row.User ? { name: row.User.name, email: row.User.email } : null,
+    user: row.User
+      ? {
+          name: row.User.name,
+          email: row.User.email,
+          whatsapp_number: row.User.whatsapp_number,
+          whatsapp: row.User.whatsapp_number,
+        }
+      : null,
     category: row.Category
       ? {
           category_id: row.Category.category_id,

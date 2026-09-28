@@ -27,6 +27,7 @@ export const User = pgTable("User", {
   password: text("password").notNull(),
   role: roleEnum("role").default("USER").notNull(),
   is_verified: boolean("is_verified").default(false).notNull(),
+  whatsapp_number: text("whatsapp_number"),
   created_by: text("created_by"),
   updated_by: text("updated_by"),
   created_at: timestamp("created_at").defaultNow().notNull(),
