@@ -143,5 +143,59 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(valid.success, true);
     });
+
+    test("createRegistrationSchema should accept team names with common symbols", () => {
+      const symbolsToTest = [
+        "UI & UX Team",
+        "Team_Alpha",
+        "Garuda (Tim 1)",
+        "UI/UX Fighters",
+        "Bismillah Juara!",
+        "Team #1",
+        "C++ Masters",
+        "[PRO] Gamers",
+        "Let's Go",
+        "\"The Champions\"",
+      ];
+
+      for (const teamName of symbolsToTest) {
+        const result = createRegistrationSchema.safeParse({
+          user_id: "usr_12345",
+          category_id: "cat_wia_01",
+          file_url: "https://drive.google.com/file/d/123/view",
+          team_name: teamName,
+          team_members: "Member 1, Member 2",
+        });
+        assert.equal(result.success, true, `Failed for team name: ${teamName}`);
+      }
+    });
+
+    test("createRegistrationSchema should accept trimmed drive urls with http or https", () => {
+      const resultHttpsTrimmed = createRegistrationSchema.safeParse({
+        user_id: "usr_12345",
+        category_id: "cat_wia_01",
+        file_url: "  https://drive.google.com/drive/folders/xyz123  ",
+        team_name: "Trim Team",
+      });
+      assert.equal(resultHttpsTrimmed.success, true);
+
+      const resultHttp = createRegistrationSchema.safeParse({
+        user_id: "usr_12345",
+        category_id: "cat_wia_01",
+        file_url: "http://drive.google.com/file/d/123/view",
+        team_name: "Http Team",
+      });
+      assert.equal(resultHttp.success, true);
+    });
+
+    test("createRegistrationSchema should reject disallowed characters in team_name", () => {
+      const invalid = createRegistrationSchema.safeParse({
+        user_id: "usr_12345",
+        category_id: "cat_wia_01",
+        file_url: "https://drive.google.com/file/d/123/view",
+        team_name: "<script>alert(1)</script>",
+      });
+      assert.equal(invalid.success, false);
+    });
   });
 });
