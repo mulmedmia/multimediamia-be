@@ -4,9 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "postinstall": "drizzle-kit generate",
     "build": "node src/db/migrate.js",
-    "vercel-build": "drizzle-kit generate && node src/db/migrate.js",
+    "vercel-build": "node src/db/migrate.js",
     "test": "node --test tests/**/*.test.js",
     "dev": "nodemon server.js",
     "start": "node server.js",
