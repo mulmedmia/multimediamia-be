@@ -6,6 +6,10 @@ import {
   deleteRegistration,
   checkTeamNameAvailability,
 } from "../services/registration.service.js";
+import {
+  validateReferralCode,
+  recordReferralOnRegistration,
+} from "../services/referral.service.js";
 import { response } from "../utils/response.js";
 import { createRegistrationSchema, updateRegistrationSchema } from "../models/registration.model.js";
 import { db } from "../db/index.js";
@@ -65,15 +69,24 @@ export const getRegistration = async (req, res) => {
 // Create new registration (user only - Fixes QA-02 by forcing user_id from token)
 export const createNewRegistration = async (req, res) => {
   try {
-    const { category_id, file_url, team_name, team_members } = req.body;
+    const { category_id, file_url, team_name, team_members, referral_code } = req.body;
     const userId = req.user.userId; // Get from authenticated JWT token
 
     const trimmedFileUrl = typeof file_url === "string" ? file_url.trim() : file_url;
     const trimmedTeamName = typeof team_name === "string" ? team_name.trim() : team_name;
+    const trimmedReferralCode = typeof referral_code === "string" ? referral_code.trim() : "";
 
     // Validate Google Drive link
     if (!trimmedFileUrl || !isGoogleDriveLink(trimmedFileUrl)) {
       return response.error(res, "file_url must be a valid Google Drive link", 400);
+    }
+
+    // Validate referral code early if provided
+    if (trimmedReferralCode) {
+      const referralCheck = await validateReferralCode(trimmedReferralCode, userId);
+      if (!referralCheck.valid) {
+        return response.error(res, referralCheck.message, 400);
+      }
     }
 
     // Get category to check team_type (Drizzle port)
@@ -112,6 +125,19 @@ export const createNewRegistration = async (req, res) => {
       ...validation.data,
       is_verified: false,
     });
+
+    // Record referral log if referral code was used
+    if (trimmedReferralCode) {
+      try {
+        await recordReferralOnRegistration(
+          registration.registration_id,
+          trimmedReferralCode,
+          userId
+        );
+      } catch (refErr) {
+        console.error("Gagal mencatat referral log:", refErr);
+      }
+    }
 
     return response.success(res, registration, "Registration submitted successfully", 201);
   } catch (error) {

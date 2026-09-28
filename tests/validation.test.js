@@ -9,6 +9,10 @@ import {
 } from "../src/models/auth.model.js";
 import { createSubmissionSchema } from "../src/models/submission.model.js";
 import { createRegistrationSchema } from "../src/models/registration.model.js";
+import {
+  validateReferralCodeSchema,
+  reviewReferralSchema,
+} from "../src/models/referral.model.js";
 
 describe("Validation Schemas Suite", () => {
   describe("Auth Validation", () => {
@@ -197,5 +201,43 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(invalid.success, false);
     });
+
+    test("createRegistrationSchema should allow optional referral_code", () => {
+      const valid = createRegistrationSchema.safeParse({
+        user_id: "usr_12345",
+        category_id: "cat_wia_01",
+        file_url: "https://drive.google.com/file/d/123/view",
+        team_name: "Referral Team",
+        referral_code: "MIA-7K9PX2",
+      });
+      assert.equal(valid.success, true);
+    });
+  });
+
+  describe("Referral Validation", () => {
+    test("validateReferralCodeSchema should accept valid code", () => {
+      const valid = validateReferralCodeSchema.safeParse({
+        referral_code: "MIA-7K9PX2",
+      });
+      assert.equal(valid.success, true);
+    });
+
+    test("validateReferralCodeSchema should reject empty or short code", () => {
+      const invalid = validateReferralCodeSchema.safeParse({
+        referral_code: "ab",
+      });
+      assert.equal(invalid.success, false);
+    });
+
+    test("reviewReferralSchema should allow valid admin notes or empty body", () => {
+      const empty = reviewReferralSchema.safeParse({});
+      assert.equal(empty.success, true);
+
+      const withNotes = reviewReferralSchema.safeParse({
+        admin_notes: "Disetujui setelah pendaftaran diverifikasi panitia",
+      });
+      assert.equal(withNotes.success, true);
+    });
   });
 });
+

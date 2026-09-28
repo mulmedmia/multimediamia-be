@@ -25,6 +25,11 @@ export const createRegistrationSchema = z.object({
     .trim()
     .max(1000, "Team members text must not exceed 1000 characters")
     .optional(),
+  referral_code: z
+    .string()
+    .trim()
+    .max(50, "Kode referral tidak boleh melebihi 50 karakter")
+    .optional(),
   is_verified: z.boolean().optional(),
 });
 
