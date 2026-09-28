@@ -15,9 +15,27 @@ export const updateProfileSchema = z.object({
     .string()
     .trim()
     .max(30, "NIM must not exceed 30 characters")
-    .regex(/^[a-zA-Z0-9.-]+$/, "NIM contains invalid characters")
-    .optional(),
+    .regex(/^[a-zA-Z0-9.-]*$/, "NIM contains invalid characters")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   email: z.string().email("Invalid email format").optional(),
+  whatsapp_number: z
+    .string()
+    .trim()
+    .max(25, "Nomor WhatsApp maksimal 25 karakter")
+    .regex(/^(\+?[0-9\s-]{8,25})?$/, "Format nomor WhatsApp tidak valid")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  whatsapp: z
+    .string()
+    .trim()
+    .max(25, "Nomor WhatsApp maksimal 25 karakter")
+    .regex(/^(\+?[0-9\s-]{8,25})?$/, "Format nomor WhatsApp tidak valid")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   current_password: z.string().min(1, "Current password is required").optional(),
   new_password: z.string().min(6, "New password must be at least 6 characters").optional(),
 }).refine((data) => {

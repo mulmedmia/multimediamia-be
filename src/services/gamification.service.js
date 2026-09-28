@@ -319,6 +319,8 @@ export const getAllRedeemUser = async (filters = {}) => {
     conditions.push(
       or(
         like(schema.User.name, `%${search}%`),
+        like(schema.User.email, `%${search}%`),
+        like(schema.User.whatsapp_number, `%${search}%`),
         like(schema.product.name, `%${search}%`)
       )
     );
@@ -357,7 +359,15 @@ export const getAllRedeemUser = async (filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
-    user: row.User ? { users_id: row.User.users_id, name: row.User.name, email: row.User.email } : null,
+    user: row.User
+      ? {
+          users_id: row.User.users_id,
+          name: row.User.name,
+          email: row.User.email,
+          whatsapp_number: row.User.whatsapp_number,
+          whatsapp: row.User.whatsapp_number,
+        }
+      : null,
     category: row.category
       ? {
           category_id: row.category.category_id,

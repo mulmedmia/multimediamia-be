@@ -17,6 +17,7 @@ export const getUserProfile = async (userId) => {
       email: schema.User.email,
       role: schema.User.role,
       is_verified: schema.User.is_verified,
+      whatsapp_number: schema.User.whatsapp_number,
       created_at: schema.User.created_at,
       updated_at: schema.User.updated_at,
     })
@@ -52,13 +53,14 @@ export const getUserProfile = async (userId) => {
 
   return {
     ...user,
+    whatsapp: user.whatsapp_number,
     category,
   };
 };
 
 // Update user profile
 export const updateUserProfile = async (userId, updateData, actingUserId = null) => {
-  const { current_password, new_password, email, nim, ...otherData } = updateData;
+  const { current_password, new_password, email, nim, whatsapp_number, whatsapp, ...otherData } = updateData;
 
   // Get current user data
   const [currentUser] = await db
@@ -84,11 +86,12 @@ export const updateUserProfile = async (userId, updateData, actingUserId = null)
   }
 
   // Check if NIM is being changed and if it's already taken
-  if (nim && nim !== currentUser.nim) {
+  const trimmedNim = nim && typeof nim === "string" ? nim.trim() : null;
+  if (trimmedNim && trimmedNim !== currentUser.nim) {
     const [existingUser] = await db
       .select()
       .from(schema.User)
-      .where(eq(schema.User.nim, nim))
+      .where(eq(schema.User.nim, trimmedNim))
       .limit(1);
     if (existingUser) {
       throw new Error("NIM already registered");
@@ -108,8 +111,14 @@ export const updateUserProfile = async (userId, updateData, actingUserId = null)
     dataToUpdate.is_verified = false;
   }
   
-  if (nim) {
-    dataToUpdate.nim = nim;
+  if (nim !== undefined) {
+    dataToUpdate.nim = trimmedNim || null;
+  }
+
+  const rawWa = whatsapp_number !== undefined ? whatsapp_number : whatsapp;
+  if (rawWa !== undefined) {
+    dataToUpdate.whatsapp_number =
+      rawWa && typeof rawWa === "string" && rawWa.trim() ? rawWa.trim() : null;
   }
 
   // Handle password change
@@ -138,11 +147,15 @@ export const updateUserProfile = async (userId, updateData, actingUserId = null)
       email: schema.User.email,
       role: schema.User.role,
       is_verified: schema.User.is_verified,
+      whatsapp_number: schema.User.whatsapp_number,
       created_at: schema.User.created_at,
       updated_at: schema.User.updated_at,
     });
 
-  return updatedUser;
+  return {
+    ...updatedUser,
+    whatsapp: updatedUser.whatsapp_number,
+  };
 };
 
 // Get all users (admin only)
@@ -159,7 +172,8 @@ export const getAllUsers = async (filters = {}) => {
       or(
         like(schema.User.name, `%${search}%`),
         like(schema.User.email, `%${search}%`),
-        like(schema.User.nim, `%${search}%`)
+        like(schema.User.nim, `%${search}%`),
+        like(schema.User.whatsapp_number, `%${search}%`)
       )
     );
   }
@@ -179,6 +193,7 @@ export const getAllUsers = async (filters = {}) => {
         email: schema.User.email,
         role: schema.User.role,
         is_verified: schema.User.is_verified,
+        whatsapp_number: schema.User.whatsapp_number,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
         created_by: schema.User.created_by,
@@ -201,6 +216,7 @@ export const getAllUsers = async (filters = {}) => {
 
   const formattedUsers = users.map((u) => ({
     ...u,
+    whatsapp: u.whatsapp_number,
     created_by_name: u.created_by_name || u.created_by || "-",
     updated_by_name: u.updated_by_name || u.updated_by || "-",
   }));
@@ -230,7 +246,8 @@ export const getRegularUsers = async (filters = {}) => {
       or(
         like(schema.User.name, `%${search}%`),
         like(schema.User.email, `%${search}%`),
-        like(schema.User.nim, `%${search}%`)
+        like(schema.User.nim, `%${search}%`),
+        like(schema.User.whatsapp_number, `%${search}%`)
       )
     );
   }
@@ -246,6 +263,7 @@ export const getRegularUsers = async (filters = {}) => {
         email: schema.User.email,
         role: schema.User.role,
         is_verified: schema.User.is_verified,
+        whatsapp_number: schema.User.whatsapp_number,
         created_at: schema.User.created_at,
         updated_at: schema.User.updated_at,
       })
@@ -260,10 +278,15 @@ export const getRegularUsers = async (filters = {}) => {
       .where(whereClause),
   ]);
 
+  const formattedUsers = users.map((u) => ({
+    ...u,
+    whatsapp: u.whatsapp_number,
+  }));
+
   const total = Number(countResult?.count || 0);
 
   return {
-    users,
+    users: formattedUsers,
     meta: {
       total,
       page: Number(page),

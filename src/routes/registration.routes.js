@@ -10,6 +10,7 @@ import {
   checkTeamNameAvailabilityController,
 } from "../controllers/registration.controller.js";
 import { authenticateToken, isAdmin } from "../middleware/jwtAuth.js";
+import { generateReferralCode } from "../controllers/referral.controller.js";
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.get("/:id", authenticateToken, getRegistration);
 
 // User routes (must be authenticated)
 router.post("/", authenticateToken, createNewRegistration);
+router.post("/:id/generate-referral-code", authenticateToken, generateReferralCode);
 router.patch("/:id", authenticateToken, updateExistingRegistration);
 router.delete("/:id", authenticateToken, deleteRegistrationById);
 
