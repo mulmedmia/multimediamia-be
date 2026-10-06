@@ -11,7 +11,7 @@ const updaterUser = alias(schema.User, "updaterUser");
 export const getAllRegistrations = async (filters = {}) => {
   const { category_id, user_id, is_verified, search, sort_by, order } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
-  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
