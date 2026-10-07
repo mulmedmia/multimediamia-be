@@ -91,16 +91,78 @@ WHERE tablename = 'Registration'
 
 ---
 
-## 4. Akun Seed Default Finance (Local/Dev)
+## 4. Cara Membuat Akun Tim Finance (Custom Email & Password)
 
-Akun default untuk pengujian dashboard Finance (dibuat via `npm run seed`):
+Tersedia 3 metode fleksibel untuk membuat atau mengubah akun tim Finance sesuai kebutuhan Anda:
 
-| Atribut | Nilai Default |
-| :--- | :--- |
-| **Nama** | Tim Finance |
-| **Email** | `finance@multimediamia.id` (atau via ENV `FINANCE_EMAIL`) |
-| **Password** | `Finance123` (atau via ENV `FINANCE_PASSWORD`) |
-| **Role** | `FINANCE` |
+### 🟢 Metode 1: Menggunakan Perintah CLI Langsung (Paling Praktis)
+Anda dapat langsung menentukan email, password, dan nama melalui argumen baris perintah di terminal backend:
+
+```bash
+# Format: node src/db/seed-finance.js <EMAIL> <PASSWORD> "<NAMA>"
+
+# Contoh:
+node src/db/seed-finance.js finance.official@mia2026.com PasswordKuat123# "Bendahara MIA 2026"
+```
+*Jika akun dengan email tersebut belum ada, akun baru akan dibuat.*  
+*Jika email sudah terdaftar, password dan nama akun tersebut akan diperbarui secara otomatis.*
+
+---
+
+### 🟡 Metode 2: Menggunakan Konfigurasi `.env`
+Tambahkan konfigurasi variabel lingkungan berikut ke dalam file `.env` di backend:
+
+```env
+# Konfigurasi Akun Finance Custom
+FINANCE_NAME="Finance Team MIA 2026"
+FINANCE_EMAIL="finance.mia2026@gmail.com"
+FINANCE_PASSWORD="PasswordCustomAnda123"
+```
+
+Lalu jalankan salah satu perintah berikut:
+```bash
+# Menjalankan khusus seed finance saja:
+npm run seed:finance
+
+# Atau menjalankan seed menyeluruh (admin, finance & kategori):
+npm run seed
+```
+
+---
+
+### 🔵 Metode 3: Skrip Raw SQL Langsung (Via Neon Console / pgAdmin / DBeaver)
+Jika Anda ingin menyuntikkan akun langsung melalui antarmuka query database tanpa menyentuh terminal backend:
+
+```sql
+-- Ganti email, nama, dan hash password sesuai kebutuhan.
+-- Catatan: Password wajib di-hash menggunakan algoritma bcrypt (10 rounds).
+-- Contoh di bawah ini password-nya adalah: Finance123
+INSERT INTO "User" (
+  "users_id",
+  "name",
+  "email",
+  "password",
+  "role",
+  "is_verified",
+  "created_at",
+  "updated_at"
+) VALUES (
+  'fin_' || substr(md5(random()::text), 1, 16),
+  'Petugas Finance MIA 2026',
+  'finance.custom@mia2026.com',
+  '$2b$10$tZ2cK.M8Vb1QnJ3Tz8HhSe0eQ1N9z1j.0oH9d7B4q1w4sY1c7E.iG', -- Hash dari 'Finance123'
+  'FINANCE',
+  true,
+  NOW(),
+  NOW()
+)
+ON CONFLICT ("email") DO UPDATE SET
+  "name" = EXCLUDED."name",
+  "password" = EXCLUDED."password",
+  "role" = 'FINANCE',
+  "is_verified" = true,
+  "updated_at" = NOW();
+```
 
 ---
 
