@@ -25,7 +25,7 @@ export const generalLimiter = rateLimit({
       try {
         const token = authHeader.split(" ")[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (decoded && (decoded.role === "ADMIN" || decoded.role === "JURI")) {
+        if (decoded && (decoded.role === "ADMIN" || decoded.role === "JURI" || decoded.role === "FINANCE")) {
           return true;
         }
       } catch {

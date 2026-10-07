@@ -5,6 +5,8 @@ import {
   updateRegistration,
   deleteRegistration,
   checkTeamNameAvailability,
+  verifyRegistrationByFinance,
+  getRegistrationStats,
 } from "../services/registration.service.js";
 import {
   validateReferralCode,
@@ -30,13 +32,14 @@ export const getRegistrations = async (req, res) => {
       category_id: req.query.category_id,
       user_id: req.query.user_id,
       is_verified: req.query.is_verified,
+      is_verified_finance: req.query.is_verified_finance,
       search: req.query.search,
       sort_by: req.query.sort_by,
       order: req.query.order,
     };
 
-    // Non-admin users are restricted to their own registrations
-    if (req.user && req.user.role !== "ADMIN") {
+    // Non-admin and non-finance users are restricted to their own registrations
+    if (req.user && req.user.role !== "ADMIN" && req.user.role !== "FINANCE") {
       filters.user_id = req.user.userId;
     }
 
@@ -52,8 +55,8 @@ export const getRegistration = async (req, res) => {
   try {
     const registration = await getRegistrationById(req.params.id);
 
-    // Non-admin users can only view their own registration
-    if (req.user && req.user.role !== "ADMIN" && registration.user_id !== req.user.userId) {
+    // Non-admin and non-finance users can only view their own registration
+    if (req.user && req.user.role !== "ADMIN" && req.user.role !== "FINANCE" && registration.user_id !== req.user.userId) {
       return response.error(res, "Forbidden: You do not have access to this registration", 403);
     }
 
@@ -304,3 +307,34 @@ export const giveRegistrationFeedback = async (req, res) => {
     return response.error(res, "Failed to give feedback", 500, error.message);
   }
 };
+
+// Finance/Admin: verify registration payment
+export const verifyRegistrationByFinanceController = async (req, res) => {
+  try {
+    const registrationId = req.params.id;
+    const { is_verified_finance, finance_notes } = req.body;
+    const updatedRegistration = await verifyRegistrationByFinance(
+      registrationId,
+      { is_verified_finance, finance_notes },
+      req.user?.userId
+    );
+    return response.success(res, updatedRegistration, "Registration payment status updated successfully");
+  } catch (error) {
+    if (error.message === "Registration not found") {
+      return response.error(res, error.message, 404);
+    }
+    return response.error(res, "Failed to update registration payment status", 500, error.message);
+  }
+};
+
+// Admin & Finance: get registration summary statistics
+export const getRegistrationStatsController = async (req, res) => {
+  try {
+    const { category_id } = req.query;
+    const stats = await getRegistrationStats({ category_id });
+    return response.success(res, stats, "Registration statistics retrieved successfully");
+  } catch (error) {
+    return response.error(res, "Failed to retrieve registration statistics", 500, error.message);
+  }
+};
+

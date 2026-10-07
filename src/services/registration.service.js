@@ -6,10 +6,11 @@ import { generateCuid } from "../db/cuid.js";
 
 const creatorUser = alias(schema.User, "creatorUser");
 const updaterUser = alias(schema.User, "updaterUser");
+const financeUser = alias(schema.User, "financeUser");
 
 // Get all registrations with filtering
 export const getAllRegistrations = async (filters = {}) => {
-  const { category_id, user_id, is_verified, search, sort_by, order } = filters;
+  const { category_id, user_id, is_verified, is_verified_finance, search, sort_by, order } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
   const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
@@ -24,8 +25,12 @@ export const getAllRegistrations = async (filters = {}) => {
     conditions.push(eq(schema.Registration.user_id, user_id));
   }
   
-  if (is_verified !== undefined) {
+  if (is_verified !== undefined && is_verified !== "" && is_verified !== "ALL") {
     conditions.push(eq(schema.Registration.is_verified, is_verified === "true" || is_verified === true));
+  }
+
+  if (is_verified_finance !== undefined && is_verified_finance !== "" && is_verified_finance !== "ALL") {
+    conditions.push(eq(schema.Registration.is_verified_finance, is_verified_finance === "true" || is_verified_finance === true));
   }
 
   if (search) {
@@ -56,12 +61,14 @@ export const getAllRegistrations = async (filters = {}) => {
         Category: schema.Category,
         creator: { name: creatorUser.name, email: creatorUser.email },
         updater: { name: updaterUser.name, email: updaterUser.email },
+        finance: { name: financeUser.name, email: financeUser.email },
       })
       .from(schema.Registration)
       .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
       .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .leftJoin(creatorUser, eq(schema.Registration.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
+      .leftJoin(financeUser, eq(schema.Registration.verified_finance_by, financeUser.users_id))
       .where(whereClause)
       .orderBy(orderByClause, desc(schema.Registration.created_at))
       .limit(safeLimit)
@@ -101,6 +108,7 @@ export const getAllRegistrations = async (filters = {}) => {
       : null,
     created_by_name: row.creator?.name || row.Registration.created_by || "-",
     updated_by_name: row.updater?.name || row.Registration.updated_by || "-",
+    verified_finance_by_name: row.finance?.name || null,
   }));
 
   const total = Number(countResult?.count || 0);
@@ -125,12 +133,14 @@ export const getRegistrationById = async (id) => {
       Category: schema.Category,
       creator: { name: creatorUser.name, email: creatorUser.email },
       updater: { name: updaterUser.name, email: updaterUser.email },
+      finance: { name: financeUser.name, email: financeUser.email },
     })
     .from(schema.Registration)
     .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
     .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
     .leftJoin(creatorUser, eq(schema.Registration.created_by, creatorUser.users_id))
     .leftJoin(updaterUser, eq(schema.Registration.updated_by, updaterUser.users_id))
+    .leftJoin(financeUser, eq(schema.Registration.verified_finance_by, financeUser.users_id))
     .where(eq(schema.Registration.registration_id, id))
     .limit(1);
 
@@ -165,6 +175,7 @@ export const getRegistrationById = async (id) => {
       : null,
     created_by_name: row.creator?.name || row.Registration.created_by || "-",
     updated_by_name: row.updater?.name || row.Registration.updated_by || "-",
+    verified_finance_by_name: row.finance?.name || null,
   };
 };
 
@@ -352,4 +363,70 @@ export const deleteRegistration = async (id) => {
   });
 
   return true;
+};
+
+// Verify registration payment by Finance
+export const verifyRegistrationByFinance = async (id, payload, financeUserId) => {
+  const { is_verified_finance, finance_notes } = payload;
+
+  const [registration] = await db
+    .select()
+    .from(schema.Registration)
+    .where(eq(schema.Registration.registration_id, id))
+    .limit(1);
+
+  if (!registration) {
+    throw new Error("Registration not found");
+  }
+
+  const isVerified = is_verified_finance === true || is_verified_finance === "true";
+
+  const updatePayload = {
+    is_verified_finance: isVerified,
+    verified_finance_at: isVerified ? new Date() : null,
+    verified_finance_by: isVerified ? financeUserId : null,
+    finance_notes: finance_notes !== undefined ? (finance_notes ? String(finance_notes).trim() : null) : registration.finance_notes,
+    updated_by: financeUserId,
+    updated_at: new Date(),
+  };
+
+  await db
+    .update(schema.Registration)
+    .set(updatePayload)
+    .where(eq(schema.Registration.registration_id, id));
+
+  return await getRegistrationById(id);
+};
+
+// Get registration summary statistics (Admin & Finance)
+export const getRegistrationStats = async (filters = {}) => {
+  const { category_id } = filters;
+  const conditions = [];
+
+  if (category_id && category_id !== "ALL") {
+    conditions.push(eq(schema.Registration.category_id, category_id));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [stats] = await db
+    .select({
+      total: sql`count(*)::int`,
+      verified: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified} = true)::int`,
+      not_verified: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified} = false)::int`,
+      team: sql`count(*) FILTER (WHERE ${schema.Registration.team_name} IS NOT NULL AND TRIM(${schema.Registration.team_name}) != '')::int`,
+      verified_finance: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified_finance} = true)::int`,
+      not_verified_finance: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified_finance} = false)::int`,
+    })
+    .from(schema.Registration)
+    .where(whereClause);
+
+  return {
+    total: Number(stats?.total || 0),
+    verified: Number(stats?.verified || 0),
+    not_verified: Number(stats?.not_verified || 0),
+    team: Number(stats?.team || 0),
+    verified_finance: Number(stats?.verified_finance || 0),
+    not_verified_finance: Number(stats?.not_verified_finance || 0),
+  };
 };
