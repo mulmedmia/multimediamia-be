@@ -7,6 +7,16 @@
 
 ---
 
+> [!IMPORTANT]
+> ### 🤖 Instruksi Khusus untuk Rekan Tim & AI Agent (Pre-Flight Check)
+> Jika Anda atau rekan tim Anda baru saja melakukan **`git pull`** pada branch ini dan ditugaskan untuk menangani fitur/migrasi Finance:
+> 
+> 1. **JANGAN membuat ulang skrip migrasi atau menulis query baru.** Seluruh skrip SQL migrasi (`0023`), skema Drizzle, model, dan endpoint verifikasi Finance **sudah selesai dibuat dan sudah teruji**.
+> 2. **Cukup lakukan RECHECK / Verifikasi Saja:** Jalankan query verifikasi pada **Bagian 3** dokumen ini untuk memastikan apakah database Anda sudah memiliki enum `FINANCE` dan kolom `is_verified_finance`.
+> 3. **Jika sudah ada dan sesuai: LEWATI (SKIP), jangan dikerjakan lagi!** Jangan merombak ulang kode atau membuat duplikasi migrasi. Anda bisa langsung fokus ke tugas/fitur lain.
+
+---
+
 ## 1. Status Eksekusi Terkini
 
 Berdasarkan pemeriksaan langsung pada database PostgreSQL (`neondb`), seluruh skrip SQL migrasi Finance **sudah berhasil dieksekusi dan aktif**:
