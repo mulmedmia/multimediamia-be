@@ -57,6 +57,46 @@ async function main() {
     console.log(`Admin user created: ${adminEmail}`);
   }
 
+  // Seed Finance user
+  const financeEmail = process.env.FINANCE_EMAIL || "finance@mia2026.com";
+  const financeName = process.env.FINANCE_NAME || "Finance Officer MIA 2026";
+  const financePassword = process.env.FINANCE_PASSWORD || "finance_password_mia2026";
+  const hashedFinancePassword = await bcrypt.hash(financePassword, saltRounds);
+
+  const [existingFinance] = await db
+    .select()
+    .from(schema.User)
+    .where(eq(schema.User.email, financeEmail))
+    .limit(1);
+
+  if (existingFinance) {
+    await db
+      .update(schema.User)
+      .set({
+        name: financeName,
+        password: hashedFinancePassword,
+        role: "FINANCE",
+        is_verified: true,
+        updated_by: existingFinance.users_id,
+        updated_at: new Date(),
+      })
+      .where(eq(schema.User.email, financeEmail));
+    console.log(`Finance user updated: ${financeEmail}`);
+  } else {
+    const financeId = generateCuid();
+    await db.insert(schema.User).values({
+      users_id: financeId,
+      name: financeName,
+      email: financeEmail,
+      password: hashedFinancePassword,
+      role: "FINANCE",
+      is_verified: true,
+      created_by: adminId,
+      updated_by: adminId,
+    });
+    console.log(`Finance user created: ${financeEmail}`);
+  }
+
   // Seed default categories
   await seedCategories(adminId);
 }

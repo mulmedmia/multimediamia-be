@@ -50,3 +50,19 @@ export const isJuri = (req, res, next) => {
   }
   next();
 };
+
+// Check if user is finance
+export const isFinance = (req, res, next) => {
+  if (!req.user || req.user.role !== "FINANCE") {
+    return response.error(res, "Forbidden: Finance access required", 403);
+  }
+  next();
+};
+
+// Check if user is admin or finance
+export const isAdminOrFinance = (req, res, next) => {
+  if (!req.user || (req.user.role !== "ADMIN" && req.user.role !== "FINANCE")) {
+    return response.error(res, "Forbidden: Admin or Finance access required", 403);
+  }
+  next();
+};
