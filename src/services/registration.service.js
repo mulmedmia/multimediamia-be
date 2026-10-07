@@ -397,3 +397,36 @@ export const verifyRegistrationByFinance = async (id, payload, financeUserId) =>
 
   return await getRegistrationById(id);
 };
+
+// Get registration summary statistics (Admin & Finance)
+export const getRegistrationStats = async (filters = {}) => {
+  const { category_id } = filters;
+  const conditions = [];
+
+  if (category_id && category_id !== "ALL") {
+    conditions.push(eq(schema.Registration.category_id, category_id));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [stats] = await db
+    .select({
+      total: sql`count(*)::int`,
+      verified: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified} = true)::int`,
+      not_verified: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified} = false)::int`,
+      team: sql`count(*) FILTER (WHERE ${schema.Registration.team_name} IS NOT NULL AND TRIM(${schema.Registration.team_name}) != '')::int`,
+      verified_finance: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified_finance} = true)::int`,
+      not_verified_finance: sql`count(*) FILTER (WHERE ${schema.Registration.is_verified_finance} = false)::int`,
+    })
+    .from(schema.Registration)
+    .where(whereClause);
+
+  return {
+    total: Number(stats?.total || 0),
+    verified: Number(stats?.verified || 0),
+    not_verified: Number(stats?.not_verified || 0),
+    team: Number(stats?.team || 0),
+    verified_finance: Number(stats?.verified_finance || 0),
+    not_verified_finance: Number(stats?.not_verified_finance || 0),
+  };
+};

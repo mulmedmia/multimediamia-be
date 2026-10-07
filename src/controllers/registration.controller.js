@@ -6,6 +6,7 @@ import {
   deleteRegistration,
   checkTeamNameAvailability,
   verifyRegistrationByFinance,
+  getRegistrationStats,
 } from "../services/registration.service.js";
 import {
   validateReferralCode,
@@ -323,6 +324,17 @@ export const verifyRegistrationByFinanceController = async (req, res) => {
       return response.error(res, error.message, 404);
     }
     return response.error(res, "Failed to update registration payment status", 500, error.message);
+  }
+};
+
+// Admin & Finance: get registration summary statistics
+export const getRegistrationStatsController = async (req, res) => {
+  try {
+    const { category_id } = req.query;
+    const stats = await getRegistrationStats({ category_id });
+    return response.success(res, stats, "Registration statistics retrieved successfully");
+  } catch (error) {
+    return response.error(res, "Failed to retrieve registration statistics", 500, error.message);
   }
 };
 

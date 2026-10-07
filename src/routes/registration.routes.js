@@ -9,6 +9,7 @@ import {
   giveRegistrationFeedback,
   checkTeamNameAvailabilityController,
   verifyRegistrationByFinanceController,
+  getRegistrationStatsController,
 } from "../controllers/registration.controller.js";
 import { authenticateToken, isAdmin, isAdminOrFinance } from "../middleware/jwtAuth.js";
 import { generateReferralCode } from "../controllers/referral.controller.js";
@@ -17,6 +18,9 @@ const router = Router();
 
 // Check team name availability (must be placed before /:id)
 router.get("/check-team-name", authenticateToken, checkTeamNameAvailabilityController);
+
+// Registration summary statistics (Admin & Finance only, must be placed before /:id)
+router.get("/stats", authenticateToken, isAdminOrFinance, getRegistrationStatsController);
 
 // Get routes (authenticated users can fetch registrations; non-admin users get automatically filtered to their own registrations)
 router.get("/", authenticateToken, getRegistrations);
