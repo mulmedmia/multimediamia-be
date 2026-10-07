@@ -1,7 +1,7 @@
 import { pgTable, text, varchar, boolean, integer, timestamp, doublePrecision, pgEnum, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 // Define Enums (matching PostgreSQL custom types created by Prisma)
-export const roleEnum = pgEnum("Role", ["USER", "ADMIN", "JURI"]);
+export const roleEnum = pgEnum("Role", ["USER", "ADMIN", "JURI", "FINANCE"]);
 export const verificationStatusEnum = pgEnum("VerificationStatus", ["VERIFIED", "NOT_VERIFIED"]);
 export const teamTypeEnum = pgEnum("TeamType", ["INDIVIDUAL", "GROUP"]);
 export const submissionStatusEnum = pgEnum("SubmissionStatus", ["PENDING", "APPROVED", "REJECTED", "REVISION"]);
@@ -79,6 +79,10 @@ export const Registration = pgTable(
     diamond: integer("diamond").default(0).notNull(),
     xp: integer("xp").default(0).notNull(),
     referral_code: text("referral_code"),
+    is_verified_finance: boolean("is_verified_finance").default(false).notNull(),
+    verified_finance_at: timestamp("verified_finance_at"),
+    verified_finance_by: text("verified_finance_by").references(() => User.users_id),
+    finance_notes: text("finance_notes"),
     created_by: text("created_by"),
     updated_by: text("updated_by"),
     created_at: timestamp("created_at").defaultNow().notNull(),
@@ -96,6 +100,7 @@ export const Registration = pgTable(
       table.xp.desc(),
       table.diamond.desc()
     ),
+    index("idx_registration_is_verified_finance").on(table.is_verified_finance),
   ]
 );
 
