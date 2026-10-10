@@ -81,7 +81,7 @@ export const getAllMissions = async (filters = {}) => {
       .leftJoin(creatorUser, eq(schema.Mission.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.Mission.updated_by, updaterUser.users_id))
       .where(whereClause)
-      .orderBy(desc(schema.Mission.created_at))
+      .orderBy(desc(schema.Mission.deadline))
       .limit(Number(limit))
       .offset(skip),
     db
@@ -415,7 +415,7 @@ export const getActiveMissionsForUser = async (userId, categoryId = null) => {
       )
     )
     .where(and(...whereConditions))
-    .orderBy(desc(schema.Mission.created_at), desc(schema.MissionSubmission.created_at));
+    .orderBy(desc(schema.Mission.deadline), desc(schema.MissionSubmission.created_at));
 
   // Deduplicate: jika user punya >1 submission (misal REJECTED lalu resubmit),
   // LEFT JOIN menghasilkan multiple rows per misi. Ambil hanya yang terbaru.
