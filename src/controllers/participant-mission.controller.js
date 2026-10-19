@@ -13,8 +13,12 @@ import { submitMissionSchema } from "../models/mission.model.js";
 export const getUserMissions = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { category_id } = req.query;
-    const missions = await getActiveMissionsForUser(userId, category_id);
+    const { category_id, registration_id } = req.query;
+    const missions = await getActiveMissionsForUser(
+      userId,
+      category_id,
+      registration_id
+    );
 
     return response.success(
       res,
@@ -39,8 +43,14 @@ export const getUserMissionDetail = async (req, res) => {
   try {
     const missionId = req.params.id;
     const userId = req.user.userId;
+    const { registration_id, category_id } = req.query;
 
-    const mission = await getMissionByIdForUser(missionId, userId);
+    const mission = await getMissionByIdForUser(
+      missionId,
+      userId,
+      registration_id,
+      category_id
+    );
 
     return response.success(
       res,
@@ -98,7 +108,9 @@ export const submitUserMission = async (req, res) => {
     if (
       error.message === "Mission is not active" ||
       error.message === "Mission deadline has passed" ||
-      error.message === "Your submission has already been approved"
+      error.message === "Your submission has already been approved" ||
+      error.message === "Invalid team registration for this user" ||
+      error.message === "Team registration does not match mission category"
     ) {
       return response.error(res, error.message, 400);
     }

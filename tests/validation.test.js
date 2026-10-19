@@ -13,6 +13,10 @@ import {
   validateReferralCodeSchema,
   reviewReferralSchema,
 } from "../src/models/referral.model.js";
+import {
+  submitMissionSchema,
+  reviewMissionSubmissionSchema,
+} from "../src/models/mission.model.js";
 
 describe("Validation Schemas Suite", () => {
   describe("Auth Validation", () => {
@@ -237,6 +241,31 @@ describe("Validation Schemas Suite", () => {
         admin_notes: "Disetujui setelah pendaftaran diverifikasi panitia",
       });
       assert.equal(withNotes.success, true);
+    });
+  });
+
+  describe("Mission Submission & Review Validation", () => {
+    test("submitMissionSchema should accept submission with registration_id and category_id", () => {
+      const valid = submitMissionSchema.safeParse({
+        submission_url: "https://drive.google.com/file/d/abc/view",
+        notes: "Untuk tim UI/UX (Jurig Kopken)",
+        registration_id: "reg_uiux_123",
+        category_id: "cat_uiux_01",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.registration_id, "reg_uiux_123");
+    });
+
+    test("reviewMissionSubmissionSchema should accept optional registration_id when approving", () => {
+      const valid = reviewMissionSubmissionSchema.safeParse({
+        status: "APPROVED",
+        awarded_xp: 100,
+        awarded_diamond: 20,
+        admin_feedback: "Mantap!",
+        registration_id: "reg_uiux_123",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.registration_id, "reg_uiux_123");
     });
   });
 });

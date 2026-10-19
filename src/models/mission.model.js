@@ -128,6 +128,8 @@ export const submitMissionSchema = z.object({
     .max(1000, "notes must not exceed 1000 characters")
     .nullable()
     .optional(),
+  registration_id: z.string().trim().nullable().optional(),
+  category_id: z.string().trim().nullable().optional(),
 });
 
 // --- Admin Review Mission Submission ---
@@ -145,6 +147,7 @@ export const reviewMissionSubmissionSchema = z
       .max(1000, "admin_feedback must not exceed 1000 characters")
       .nullable()
       .optional(),
+    registration_id: z.string().trim().nullable().optional(),
   })
   .refine(
     (data) => {

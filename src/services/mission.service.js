@@ -1,11 +1,13 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, ilike, and, sql, desc, isNull } from "drizzle-orm";
+import { eq, or, ilike, and, sql, desc, isNull, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
 const creatorUser = alias(schema.User, "creatorUser");
 const updaterUser = alias(schema.User, "updaterUser");
+const subReg = alias(schema.Registration, "subReg");
+const subRegCategory = alias(schema.Category, "subRegCategory");
 
 /**
  * Membuat misi harian baru
@@ -253,7 +255,8 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
         ilike(schema.User.name, `%${search}%`),
         ilike(schema.User.email, `%${search}%`),
         ilike(schema.MissionSubmission.submission_url, `%${search}%`),
-        ilike(schema.Mission.title, `%${search}%`)
+        ilike(schema.Mission.title, `%${search}%`),
+        ilike(subReg.team_name, `%${search}%`)
       )
     );
   }
@@ -266,6 +269,7 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
         submission_id: schema.MissionSubmission.submission_id,
         mission_id: schema.MissionSubmission.mission_id,
         user_id: schema.MissionSubmission.user_id,
+        registration_id: schema.MissionSubmission.registration_id,
         submission_url: schema.MissionSubmission.submission_url,
         notes: schema.MissionSubmission.notes,
         status: schema.MissionSubmission.status,
@@ -284,6 +288,13 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
           name: schema.User.name,
           email: schema.User.email,
           nim: schema.User.nim,
+        },
+        registration: {
+          registration_id: subReg.registration_id,
+          team_name: subReg.team_name,
+          category_id: subReg.category_id,
+          category_name: subRegCategory.name,
+          category_slug: subRegCategory.slug,
         },
         mission: {
           mission_id: schema.Mission.mission_id,
@@ -305,6 +316,14 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
       .leftJoin(
         schema.User,
         eq(schema.MissionSubmission.user_id, schema.User.users_id)
+      )
+      .leftJoin(
+        subReg,
+        eq(schema.MissionSubmission.registration_id, subReg.registration_id)
+      )
+      .leftJoin(
+        subRegCategory,
+        eq(subReg.category_id, subRegCategory.category_id)
       )
       .leftJoin(
         schema.Mission,
@@ -334,18 +353,75 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
         eq(schema.MissionSubmission.user_id, schema.User.users_id)
       )
       .leftJoin(
+        subReg,
+        eq(schema.MissionSubmission.registration_id, subReg.registration_id)
+      )
+      .leftJoin(
         schema.Mission,
         eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id)
       )
       .where(whereClause),
   ]);
 
-  const submissions = rows.map((row) => ({
-    ...row,
-    created_by_name:
-      row.creator?.name || row.user?.name || row.created_by || "-",
-    updated_by_name: row.updater?.name || row.updated_by || "-",
-  }));
+  // Untuk submission lama yang belum memiliki registration_id (null),
+  // ambil daftar registrasi user agar Admin tetap dapat melihat/memilih tim peserta.
+  const userIdsWithoutReg = [
+    ...new Set(
+      rows
+        .filter((r) => !r.registration?.registration_id && r.user_id)
+        .map((r) => r.user_id)
+    ),
+  ];
+
+  const userRegsMap = new Map();
+  if (userIdsWithoutReg.length > 0) {
+    const fallbackRegs = await db
+      .select({
+        registration_id: schema.Registration.registration_id,
+        user_id: schema.Registration.user_id,
+        team_name: schema.Registration.team_name,
+        category_id: schema.Registration.category_id,
+        category_name: schema.Category.name,
+        category_slug: schema.Category.slug,
+      })
+      .from(schema.Registration)
+      .leftJoin(
+        schema.Category,
+        eq(schema.Registration.category_id, schema.Category.category_id)
+      )
+      .where(inArray(schema.Registration.user_id, userIdsWithoutReg));
+
+    for (const reg of fallbackRegs) {
+      if (!userRegsMap.has(reg.user_id)) {
+        userRegsMap.set(reg.user_id, []);
+      }
+      userRegsMap.get(reg.user_id).push(reg);
+    }
+  }
+
+  const submissions = rows.map((row) => {
+    let resolvedReg = row.registration?.registration_id ? row.registration : null;
+    const candidateRegs = userRegsMap.get(row.user_id) || [];
+
+    if (!resolvedReg && candidateRegs.length > 0) {
+      if (row.mission?.category_id) {
+        resolvedReg =
+          candidateRegs.find((r) => r.category_id === row.mission.category_id) ||
+          null;
+      } else if (candidateRegs.length === 1) {
+        resolvedReg = candidateRegs[0];
+      }
+    }
+
+    return {
+      ...row,
+      registration: resolvedReg,
+      user_registrations: candidateRegs,
+      created_by_name:
+        row.creator?.name || row.user?.name || row.created_by || "-",
+      updated_by_name: row.updater?.name || row.updated_by || "-",
+    };
+  });
 
   const total = Number(countResult?.count || 0);
 
@@ -365,18 +441,118 @@ export const getMissionSubmissions = async (missionId, filters = {}) => {
 // ==========================================
 
 /**
- * Mengambil seluruh misi aktif beserta status pengumpulan milik user yang sedang login.
- * Setiap misi akan memiliki field `my_submission` (object | null).
+ * Helper untuk meresolusi registration_id milik user dari parameter registrationId atau categoryId.
  */
-export const getActiveMissionsForUser = async (userId, categoryId = null) => {
-  const whereConditions = [eq(schema.Mission.status, "ACTIVE")];
+const resolveParticipantRegistration = async (
+  userId,
+  registrationId = null,
+  categoryId = null
+) => {
+  if (registrationId) {
+    const [reg] = await db
+      .select({
+        registration_id: schema.Registration.registration_id,
+        category_id: schema.Registration.category_id,
+        team_name: schema.Registration.team_name,
+      })
+      .from(schema.Registration)
+      .where(
+        and(
+          eq(schema.Registration.registration_id, registrationId),
+          eq(schema.Registration.user_id, userId)
+        )
+      )
+      .limit(1);
+    if (reg) return reg;
+  }
+
   if (categoryId) {
+    const [reg] = await db
+      .select({
+        registration_id: schema.Registration.registration_id,
+        category_id: schema.Registration.category_id,
+        team_name: schema.Registration.team_name,
+      })
+      .from(schema.Registration)
+      .where(
+        and(
+          eq(schema.Registration.user_id, userId),
+          eq(schema.Registration.category_id, categoryId)
+        )
+      )
+      .limit(1);
+    if (reg) return reg;
+  }
+
+  return null;
+};
+
+/**
+ * Mengambil seluruh misi aktif beserta status pengumpulan milik user yang sedang login.
+ * Setiap misi akan memiliki field `my_submission` (object | null) sesuai tim/registrasi yang aktif.
+ */
+export const getActiveMissionsForUser = async (
+  userId,
+  categoryId = null,
+  registrationId = null
+) => {
+  const activeReg = await resolveParticipantRegistration(
+    userId,
+    registrationId,
+    categoryId
+  );
+  const targetRegId = activeReg?.registration_id || null;
+  const effectiveCategoryId = categoryId || activeReg?.category_id || null;
+
+  const whereConditions = [eq(schema.Mission.status, "ACTIVE")];
+  if (effectiveCategoryId) {
     whereConditions.push(
       or(
-        eq(schema.Mission.category_id, categoryId),
+        eq(schema.Mission.category_id, effectiveCategoryId),
         isNull(schema.Mission.category_id)
       )
     );
+  }
+
+  // Cek apakah user memiliki > 1 registrasi (multi-tim)
+  // Jika multi-tim, submission lama yang registration_id = null pada misi global tidak boleh
+  // otomatis mengunci tim lain yang belum pernah submit, kecuali mission.category_id cocok.
+  const userRegs = await db
+    .select({
+      registration_id: schema.Registration.registration_id,
+      category_id: schema.Registration.category_id,
+    })
+    .from(schema.Registration)
+    .where(eq(schema.Registration.user_id, userId));
+
+  const isMultiTeamUser = userRegs.length > 1;
+
+  const subJoinConditions = [
+    eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id),
+    eq(schema.MissionSubmission.user_id, userId),
+  ];
+
+  if (targetRegId) {
+    if (isMultiTeamUser) {
+      // Untuk user multi-tim: cocokkan registration_id spesifik tim ini,
+      // atau legacy null HANYA jika misi tersebut memang spesifik untuk kategori tim ini
+      subJoinConditions.push(
+        or(
+          eq(schema.MissionSubmission.registration_id, targetRegId),
+          and(
+            isNull(schema.MissionSubmission.registration_id),
+            eq(schema.Mission.category_id, activeReg.category_id)
+          )
+        )
+      );
+    } else {
+      subJoinConditions.push(
+        or(
+          eq(schema.MissionSubmission.registration_id, targetRegId),
+          isNull(schema.MissionSubmission.registration_id)
+        )
+      );
+    }
   }
 
   // Query semua misi ACTIVE, left join dengan submission milik user dan kategori
@@ -397,6 +573,7 @@ export const getActiveMissionsForUser = async (userId, categoryId = null) => {
       category: schema.Category,
       // Submission milik user (nullable)
       sub_id: schema.MissionSubmission.submission_id,
+      sub_registration_id: schema.MissionSubmission.registration_id,
       sub_url: schema.MissionSubmission.submission_url,
       sub_notes: schema.MissionSubmission.notes,
       sub_status: schema.MissionSubmission.status,
@@ -407,15 +584,13 @@ export const getActiveMissionsForUser = async (userId, categoryId = null) => {
     })
     .from(schema.Mission)
     .leftJoin(schema.Category, eq(schema.Mission.category_id, schema.Category.category_id))
-    .leftJoin(
-      schema.MissionSubmission,
-      and(
-        eq(schema.MissionSubmission.mission_id, schema.Mission.mission_id),
-        eq(schema.MissionSubmission.user_id, userId)
-      )
-    )
+    .leftJoin(schema.MissionSubmission, and(...subJoinConditions))
     .where(and(...whereConditions))
-    .orderBy(desc(schema.Mission.deadline), desc(schema.MissionSubmission.created_at));
+    .orderBy(
+      desc(schema.Mission.deadline),
+      sql`CASE WHEN ${schema.MissionSubmission.registration_id} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(schema.MissionSubmission.created_at)
+    );
 
   // Deduplicate: jika user punya >1 submission (misal REJECTED lalu resubmit),
   // LEFT JOIN menghasilkan multiple rows per misi. Ambil hanya yang terbaru.
@@ -447,6 +622,7 @@ export const getActiveMissionsForUser = async (userId, categoryId = null) => {
         my_submission: row.sub_id
           ? {
             submission_id: row.sub_id,
+            registration_id: row.sub_registration_id,
             submission_url: row.sub_url,
             notes: row.sub_notes,
             status: row.sub_status,
@@ -467,7 +643,12 @@ export const getActiveMissionsForUser = async (userId, categoryId = null) => {
  * Mengambil detail satu misi berdasarkan ID beserta status pengumpulan milik user yang sedang login.
  * Misi dengan status DRAFT tidak dapat diakses oleh peserta (404).
  */
-export const getMissionByIdForUser = async (missionId, userId) => {
+export const getMissionByIdForUser = async (
+  missionId,
+  userId,
+  registrationId = null,
+  categoryId = null
+) => {
   const [mission] = await db
     .select()
     .from(schema.Mission)
@@ -478,34 +659,55 @@ export const getMissionByIdForUser = async (missionId, userId) => {
     throw new Error("Mission not found");
   }
 
+  const activeReg = await resolveParticipantRegistration(
+    userId,
+    registrationId,
+    categoryId || mission.category_id
+  );
+  const targetRegId = activeReg?.registration_id || null;
+
+  const subConditions = [
+    eq(schema.MissionSubmission.mission_id, missionId),
+    eq(schema.MissionSubmission.user_id, userId),
+  ];
+
+  if (targetRegId) {
+    subConditions.push(
+      or(
+        eq(schema.MissionSubmission.registration_id, targetRegId),
+        isNull(schema.MissionSubmission.registration_id)
+      )
+    );
+  }
+
   // Ambil submission user yang paling baru
   const [submission] = await db
     .select()
     .from(schema.MissionSubmission)
-    .where(
-      and(
-        eq(schema.MissionSubmission.mission_id, missionId),
-        eq(schema.MissionSubmission.user_id, userId)
-      )
+    .where(and(...subConditions))
+    .orderBy(
+      sql`CASE WHEN ${schema.MissionSubmission.registration_id} IS NOT NULL THEN 0 ELSE 1 END`,
+      desc(schema.MissionSubmission.created_at)
     )
-    .orderBy(desc(schema.MissionSubmission.created_at))
     .limit(1);
 
   return {
     mission_id: mission.mission_id,
+    category_id: mission.category_id,
     title: mission.title,
     description: mission.description,
     deadline: mission.deadline,
     min_xp: mission.min_xp,
     max_xp: mission.max_xp,
     min_diamond: mission.min_diamond,
-    max_diamond: mission.max_diamond,
+    max_diamond: mission.min_diamond ? mission.max_diamond : mission.max_diamond,
     google_docs_url: mission.google_docs_url,
     status: mission.status,
     created_at: mission.created_at,
     my_submission: submission
       ? {
         submission_id: submission.submission_id,
+        registration_id: submission.registration_id,
         submission_url: submission.submission_url,
         notes: submission.notes,
         status: submission.status,
@@ -521,7 +723,7 @@ export const getMissionByIdForUser = async (missionId, userId) => {
 /**
  * Peserta submit link pengumpulan misi.
  * Validasi: misi harus ada & ACTIVE, belum melewati deadline.
- * - APPROVED → block (sudah disetujui)
+ * - APPROVED → block (sudah disetujui untuk tim tersebut)
  * - PENDING → update submission yang ada (resubmit perbaiki link)
  * - REJECTED / belum ada → buat submission baru
  */
@@ -546,8 +748,39 @@ export const submitMission = async (missionId, userId, data) => {
     throw new Error("Mission deadline has passed");
   }
 
+  // 2b. Resolusi registrasi tim milik user
+  const userRegs = await db
+    .select({
+      registration_id: schema.Registration.registration_id,
+      category_id: schema.Registration.category_id,
+      team_name: schema.Registration.team_name,
+    })
+    .from(schema.Registration)
+    .where(eq(schema.Registration.user_id, userId));
+
+  let targetReg = null;
+  if (data.registration_id) {
+    targetReg = userRegs.find((r) => r.registration_id === data.registration_id);
+    if (!targetReg) {
+      throw new Error("Invalid team registration for this user");
+    }
+  } else if (mission.category_id) {
+    targetReg = userRegs.find((r) => r.category_id === mission.category_id) || null;
+  } else if (data.category_id) {
+    targetReg = userRegs.find((r) => r.category_id === data.category_id) || null;
+  } else if (userRegs.length === 1) {
+    targetReg = userRegs[0];
+  }
+
+  if (mission.category_id && targetReg && targetReg.category_id !== mission.category_id) {
+    throw new Error("Team registration does not match mission category");
+  }
+
+  const targetRegId = targetReg ? targetReg.registration_id : null;
+  const isMultiTeamUser = userRegs.length > 1;
+
   // 3. Cek submission yang sudah ada milik user di misi ini
-  const existingSubmissions = await db
+  const allUserMissionSubmissions = await db
     .select()
     .from(schema.MissionSubmission)
     .where(
@@ -557,6 +790,20 @@ export const submitMission = async (missionId, userId, data) => {
       )
     )
     .orderBy(desc(schema.MissionSubmission.created_at));
+
+  // Filter submission yang relevan dengan tim aktif (targetRegId)
+  const existingSubmissions = targetRegId
+    ? allUserMissionSubmissions.filter((s) => {
+        if (s.registration_id === targetRegId) return true;
+        if (!s.registration_id) {
+          // Jika misi spesifik kategori atau user hanya punya 1 tim, legacy null milik tim ini
+          if (mission.category_id || !isMultiTeamUser) return true;
+          // Jika misi global & user multi-tim, klaim submission PENDING yang masih null
+          if (s.status === "PENDING") return true;
+        }
+        return false;
+      })
+    : allUserMissionSubmissions;
 
   // 3a. Jika sudah pernah APPROVED → block, tidak perlu submit ulang
   if (existingSubmissions.some((s) => s.status === "APPROVED")) {
@@ -569,6 +816,7 @@ export const submitMission = async (missionId, userId, data) => {
     const [updated] = await db
       .update(schema.MissionSubmission)
       .set({
+        registration_id: targetRegId || pendingSubmission.registration_id || null,
         submission_url: data.submission_url,
         notes: data.notes || null,
         updated_by: userId,
@@ -589,6 +837,7 @@ export const submitMission = async (missionId, userId, data) => {
       submission_id: submissionId,
       mission_id: missionId,
       user_id: userId,
+      registration_id: targetRegId,
       submission_url: data.submission_url,
       notes: data.notes || null,
       status: "PENDING",
@@ -612,10 +861,10 @@ export const submitMission = async (missionId, userId, data) => {
  * - Validasi batas min/max XP & Diamond misi
  * - Jalankan transaksi atomik (db.transaction)
  *   1. Update status MissionSubmission -> APPROVED, set awarded_xp, awarded_diamond, admin_feedback, reviewed_at
- *   2. Atomic increment User.xp & User.points
+ *   2. Atomic increment Registration.xp & Registration.diamond hanya pada tim yang bersangkutan
  * Jika status === "REJECTED":
  * - Update status MissionSubmission -> REJECTED, admin_feedback, reviewed_at
- * - Saldo User tidak bertambah
+ * - Saldo tim tidak bertambah
  */
 export const reviewMissionSubmission = async (submissionId, data, adminId = null) => {
   // 1. Ambil data submission beserta misi terkait
@@ -647,6 +896,8 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
     throw new Error("Submission has already been rejected and cannot be modified");
   }
 
+  const targetRegId = data.registration_id || submission.registration_id || null;
+
   // 3. Logika untuk status REJECTED
   if (data.status === "REJECTED") {
     const subRejectPayload = {
@@ -657,6 +908,9 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
       reviewed_at: new Date(),
       updated_at: new Date(),
     };
+    if (targetRegId && !submission.registration_id) {
+      subRejectPayload.registration_id = targetRegId;
+    }
     if (adminId) {
       subRejectPayload.updated_by = adminId;
     }
@@ -700,6 +954,9 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
       reviewed_at: new Date(),
       updated_at: new Date(),
     };
+    if (targetRegId && !submission.registration_id) {
+      subApprovePayload.registration_id = targetRegId;
+    }
     if (adminId) {
       subApprovePayload.updated_by = adminId;
     }
@@ -711,6 +968,7 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
       .returning();
 
     // 4b. Increment Registration.xp & Registration.diamond secara atomik
+    // Prioritaskan targetRegId (tim spesifik yang mengumpulkan misi).
     const regUpdatePayload = {
       xp: sql`${schema.Registration.xp} + ${data.awarded_xp}`,
       diamond: sql`${schema.Registration.diamond} + ${data.awarded_diamond}`,
@@ -721,7 +979,9 @@ export const reviewMissionSubmission = async (submissionId, data, adminId = null
     }
 
     const regConditions = [eq(schema.Registration.user_id, submission.user_id)];
-    if (mission.category_id) {
+    if (targetRegId) {
+      regConditions.push(eq(schema.Registration.registration_id, targetRegId));
+    } else if (mission.category_id) {
       regConditions.push(eq(schema.Registration.category_id, mission.category_id));
     }
 

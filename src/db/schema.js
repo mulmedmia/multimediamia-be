@@ -238,6 +238,7 @@ export const MissionSubmission = pgTable("MissionSubmission", {
   submission_id: text("submission_id").primaryKey(),
   mission_id: text("mission_id").notNull().references(() => Mission.mission_id, { onDelete: "cascade" }),
   user_id: text("user_id").notNull().references(() => User.users_id, { onDelete: "cascade" }),
+  registration_id: text("registration_id").references(() => Registration.registration_id, { onDelete: "cascade" }),
   submission_url: text("submission_url").notNull(),
   notes: text("notes"),
   status: missionSubmissionStatusEnum("status").default("PENDING").notNull(),
