@@ -109,9 +109,9 @@ export const Submission = pgTable(
   "Submission",
   {
     submission_id: text("submission_id").primaryKey(),
-    user_id: text("user_id").notNull().references(() => User.users_id),
-    category_id: text("category_id").notNull().references(() => Category.category_id),
-    team_name: text("team_name").notNull(),
+    registration_id: text("registration_id")
+      .notNull()
+      .references(() => Registration.registration_id, { onDelete: "cascade" }),
     project_name: text("project_name").notNull(),
     description: text("description").notNull(),
     flow_application: text("flow_application").notNull(),
@@ -124,8 +124,8 @@ export const Submission = pgTable(
   },
   (table) => [
     index("idx_submission_show_it").on(table.status, table.is_verified, table.created_at.desc()),
-    index("idx_submission_category_id").on(table.category_id),
-    index("idx_submission_user_id").on(table.user_id),
+    index("idx_submission_registration_id").on(table.registration_id),
+    uniqueIndex("idx_submission_registration_id_unique").on(table.registration_id),
   ]
 );
 

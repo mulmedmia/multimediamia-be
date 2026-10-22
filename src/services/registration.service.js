@@ -349,12 +349,7 @@ export const deleteRegistration = async (id) => {
     // Delete associated submissions
     await tx
       .delete(schema.Submission)
-      .where(
-        and(
-          eq(schema.Submission.user_id, registration.user_id),
-          eq(schema.Submission.category_id, registration.category_id)
-        )
-      );
+      .where(eq(schema.Submission.registration_id, id));
 
     // Delete registration
     await tx

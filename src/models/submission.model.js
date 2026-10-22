@@ -2,13 +2,7 @@ import { z } from "zod";
 
 // Schema for creating a submission
 export const createSubmissionSchema = z.object({
-  category_id: z.string().min(1, "Category ID is required"),
-  team_name: z
-    .string()
-    .trim()
-    .min(1, "Team name is required")
-    .max(100, "Team name must not exceed 100 characters")
-    .regex(/^[a-zA-Z0-9\s'.,-]+$/, "Team name contains invalid characters"),
+  registration_id: z.string().min(1, "Registration ID is required"),
   project_name: z
     .string()
     .trim()
@@ -40,13 +34,6 @@ export const createSubmissionSchema = z.object({
 
 // Schema for updating a submission
 export const updateSubmissionSchema = z.object({
-  team_name: z
-    .string()
-    .trim()
-    .min(1, "Team name is required")
-    .max(100, "Team name must not exceed 100 characters")
-    .regex(/^[a-zA-Z0-9\s'.,-]+$/, "Team name contains invalid characters")
-    .optional(),
   project_name: z
     .string()
     .trim()

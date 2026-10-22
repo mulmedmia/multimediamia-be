@@ -6,9 +6,15 @@ CREATE INDEX IF NOT EXISTS "idx_registration_team_name" ON "Registration" ("team
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_registration_is_verified" ON "Registration" ("is_verified");
 --> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_submission_category_id" ON "Submission" ("category_id");
---> statement-breakpoint
-CREATE INDEX IF NOT EXISTS "idx_submission_user_id" ON "Submission" ("user_id");
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Submission' AND column_name = 'category_id') THEN
+    CREATE INDEX IF NOT EXISTS "idx_submission_category_id" ON "Submission" ("category_id");
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Submission' AND column_name = 'user_id') THEN
+    CREATE INDEX IF NOT EXISTS "idx_submission_user_id" ON "Submission" ("user_id");
+  END IF;
+END $$;
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "idx_submission_status" ON "Submission" ("status");
 --> statement-breakpoint

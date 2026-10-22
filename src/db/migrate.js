@@ -128,9 +128,10 @@ export async function runMigrations() {
           if (
             err.code === "42710" || // duplicate_object (type already exists)
             err.code === "42P07" || // duplicate_table
-            err.code === "42701"    // duplicate_column
+            err.code === "42701" || // duplicate_column
+            (err.code === "42703" && statement.toUpperCase().includes("UPDATE ")) // column does not exist during historical backfill UPDATE
           ) {
-            console.warn(` ⚠️ Warning in ${file}: ${err.message} (skipping duplicate)`);
+            console.warn(` ⚠️ Warning in ${file}: ${err.message} (skipping duplicate or obsolete column update)`);
           } else {
             throw err;
           }
