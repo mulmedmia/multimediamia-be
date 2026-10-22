@@ -134,8 +134,10 @@ export const getLeaderboardByCategory = async (req, res) => {
       .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(
         and(
-          eq(schema.Registration.category_id, category_id),
-          eq(schema.Registration.is_verified, true)
+          ...(category_id === "all"
+            ? []
+            : [eq(schema.Registration.category_id, category_id)]),
+          eq(schema.Registration.is_verified, true),
         )
       )
       .as("ranked_leaderboard");
