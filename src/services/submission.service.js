@@ -32,7 +32,7 @@ export const getAllSubmissions = async (filters = {}) => {
     conditions.push(eq(schema.Submission.status, status));
   }
 
-  if (category_id) {
+  if (category_id && category_id !== "all") {
     conditions.push(eq(schema.Submission.category_id, category_id));
   }
   if (user_id) {
