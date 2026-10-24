@@ -12,6 +12,7 @@ export const getAllSubmissions = async (filters = {}) => {
   const {
     category_id,
     user_id,
+    registration_id,
     status,
     is_verified,
     search,
@@ -32,11 +33,14 @@ export const getAllSubmissions = async (filters = {}) => {
     conditions.push(eq(schema.Submission.status, status));
   }
 
-  if (category_id) {
-    conditions.push(eq(schema.Submission.category_id, category_id));
+  if (category_id && category_id !== "all") {
+    conditions.push(eq(schema.Registration.category_id, category_id));
   }
   if (user_id) {
-    conditions.push(eq(schema.Submission.user_id, user_id));
+    conditions.push(eq(schema.Registration.user_id, user_id));
+  }
+  if (registration_id) {
+    conditions.push(eq(schema.Submission.registration_id, registration_id));
   }
   if (is_verified !== undefined) {
     conditions.push(eq(schema.Submission.is_verified, is_verified === "true" || is_verified === true));
@@ -48,7 +52,7 @@ export const getAllSubmissions = async (filters = {}) => {
         ilike(schema.User.name, searchPattern),
         ilike(schema.User.email, searchPattern),
         ilike(schema.Submission.project_name, searchPattern),
-        ilike(schema.Submission.team_name, searchPattern)
+        ilike(schema.Registration.team_name, searchPattern)
       )
     );
   }
@@ -59,8 +63,9 @@ export const getAllSubmissions = async (filters = {}) => {
     db
       .select({ submission_id: schema.Submission.submission_id })
       .from(schema.Submission)
-      .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
-      .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+      .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
+      .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(whereClause)
       .orderBy(desc(schema.Submission.created_at))
       .limit(safeLimit)
@@ -68,8 +73,9 @@ export const getAllSubmissions = async (filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Submission)
-      .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
-      .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+      .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
+      .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+      .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(whereClause),
   ]);
 
@@ -92,6 +98,7 @@ export const getAllSubmissions = async (filters = {}) => {
   const details = await db
     .select({
       Submission: schema.Submission,
+      Registration: schema.Registration,
       User: schema.User,
       Category: schema.Category,
       SubmissionLink: schema.SubmissionLink,
@@ -99,8 +106,9 @@ export const getAllSubmissions = async (filters = {}) => {
       updater: { name: updaterUser.name, email: updaterUser.email },
     })
     .from(schema.Submission)
-    .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
-    .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+    .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
+    .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+    .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
     .leftJoin(schema.SubmissionLink, eq(schema.Submission.submission_id, schema.SubmissionLink.submission_id))
     .leftJoin(creatorUser, eq(schema.Submission.created_by, creatorUser.users_id))
     .leftJoin(updaterUser, eq(schema.Submission.updated_by, updaterUser.users_id))
@@ -113,6 +121,10 @@ export const getAllSubmissions = async (filters = {}) => {
     if (!submissionMap[subId]) {
       submissionMap[subId] = {
         ...row.Submission,
+        registration_id: row.Submission.registration_id,
+        user_id: row.Registration?.user_id,
+        category_id: row.Registration?.category_id,
+        team_name: row.Registration?.team_name,
         // Hapus email kontak untuk publik / show-it
         user: row.User
           ? {
@@ -159,6 +171,7 @@ export const getSubmissionById = async (
   const details = await db
     .select({
       Submission: schema.Submission,
+      Registration: schema.Registration,
       User: schema.User,
       Category: schema.Category,
       SubmissionLink: schema.SubmissionLink,
@@ -166,8 +179,9 @@ export const getSubmissionById = async (
       updater: { name: updaterUser.name, email: updaterUser.email },
     })
     .from(schema.Submission)
-    .leftJoin(schema.User, eq(schema.Submission.user_id, schema.User.users_id))
-    .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+    .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
+    .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
+    .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
     .leftJoin(schema.SubmissionLink, eq(schema.Submission.submission_id, schema.SubmissionLink.submission_id))
     .leftJoin(creatorUser, eq(schema.Submission.created_by, creatorUser.users_id))
     .leftJoin(updaterUser, eq(schema.Submission.updated_by, updaterUser.users_id))
@@ -178,7 +192,8 @@ export const getSubmissionById = async (
   }
 
   const category = details[0].Category;
-  const isOwner = Boolean(userId && details[0].Submission.user_id === userId);
+  const registration = details[0].Registration;
+  const isOwner = Boolean(userId && registration?.user_id === userId);
   const isPublicView = !isStaff && !isOwner && !isInternal;
 
   if (isPublicView) {
@@ -193,6 +208,10 @@ export const getSubmissionById = async (
 
   const submission = {
     ...details[0].Submission,
+    registration_id: details[0].Submission.registration_id,
+    user_id: registration?.user_id,
+    category_id: registration?.category_id,
+    team_name: registration?.team_name,
     // Hapus email kontak untuk publik / show-it
     user: details[0].User
       ? {
@@ -231,10 +250,10 @@ export const getUserSubmissions = async (userId, filters = {}) => {
   const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
 
-  const conditions = [eq(schema.Submission.user_id, userId)];
+  const conditions = [eq(schema.Registration.user_id, userId)];
 
   if (category_id) {
-    conditions.push(eq(schema.Submission.category_id, category_id));
+    conditions.push(eq(schema.Registration.category_id, category_id));
   }
   if (status) {
     conditions.push(eq(schema.Submission.status, status));
@@ -244,8 +263,9 @@ export const getUserSubmissions = async (userId, filters = {}) => {
 
   const [submissionsList, [countResult]] = await Promise.all([
     db
-      .select()
+      .select({ submission_id: schema.Submission.submission_id })
       .from(schema.Submission)
+      .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
       .where(whereClause)
       .orderBy(desc(schema.Submission.created_at))
       .limit(safeLimit)
@@ -253,6 +273,7 @@ export const getUserSubmissions = async (userId, filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Submission)
+      .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
       .where(whereClause),
   ]);
 
@@ -273,9 +294,15 @@ export const getUserSubmissions = async (userId, filters = {}) => {
   const submissionIds = submissionsList.map((s) => s.submission_id);
 
   const details = await db
-    .select()
+    .select({
+      Submission: schema.Submission,
+      Registration: schema.Registration,
+      Category: schema.Category,
+      SubmissionLink: schema.SubmissionLink,
+    })
     .from(schema.Submission)
-    .leftJoin(schema.Category, eq(schema.Submission.category_id, schema.Category.category_id))
+    .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
+    .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
     .leftJoin(schema.SubmissionLink, eq(schema.Submission.submission_id, schema.SubmissionLink.submission_id))
     .where(inArray(schema.Submission.submission_id, submissionIds));
 
@@ -285,6 +312,10 @@ export const getUserSubmissions = async (userId, filters = {}) => {
     if (!submissionMap[subId]) {
       submissionMap[subId] = {
         ...row.Submission,
+        registration_id: row.Submission.registration_id,
+        user_id: row.Registration?.user_id,
+        category_id: row.Registration?.category_id,
+        team_name: row.Registration?.team_name,
         category: row.Category
           ? {
               ...row.Category,
@@ -388,11 +419,30 @@ export const createSubmission = async (submissionData, userId) => {
     throw new Error("User ID is required");
   }
 
+  if (!submissionFields.registration_id) {
+    throw new Error("Registration ID is required");
+  }
+
+  // Check if registration exists
+  const [registration] = await db
+    .select()
+    .from(schema.Registration)
+    .where(eq(schema.Registration.registration_id, submissionFields.registration_id))
+    .limit(1);
+
+  if (!registration) {
+    throw new Error("Registration not found");
+  }
+
+  if (registration.user_id !== userId) {
+    throw new Error("Unauthorized: Registration does not belong to user");
+  }
+
   // Check if category exists
   const [category] = await db
     .select()
     .from(schema.Category)
-    .where(eq(schema.Category.category_id, submissionFields.category_id))
+    .where(eq(schema.Category.category_id, registration.category_id))
     .limit(1);
 
   if (!category) {
@@ -435,16 +485,11 @@ export const createSubmission = async (submissionData, userId) => {
     validateUiaLinks(links, category, isFinalPhase);
   }
 
-  // Check if user already has a submission for this category
+  // Check if user already has a submission for this registration
   const [existingSubmission] = await db
     .select()
     .from(schema.Submission)
-    .where(
-      and(
-        eq(schema.Submission.user_id, userId),
-        eq(schema.Submission.category_id, submissionFields.category_id)
-      )
-    )
+    .where(eq(schema.Submission.registration_id, registration.registration_id))
     .limit(1);
 
   if (existingSubmission) {
@@ -457,9 +502,7 @@ export const createSubmission = async (submissionData, userId) => {
   await db.transaction(async (tx) => {
     await tx.insert(schema.Submission).values({
       submission_id: newSubId,
-      user_id: userId,
-      category_id: submissionFields.category_id,
-      team_name: submissionFields.team_name,
+      registration_id: registration.registration_id,
       project_name: submissionFields.project_name,
       description: submissionFields.description,
       flow_application: submissionFields.flow_application,
@@ -491,18 +534,24 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
   const { links, ...submissionFields } = submissionData;
 
   // Check if submission exists
-  const [submission] = await db
-    .select()
+  const [row] = await db
+    .select({
+      Submission: schema.Submission,
+      Registration: schema.Registration,
+    })
     .from(schema.Submission)
+    .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
     .where(eq(schema.Submission.submission_id, id))
     .limit(1);
 
-  if (!submission) {
+  if (!row) {
     throw new Error("Submission not found");
   }
 
+  const { Submission: submission, Registration: registration } = row;
+
   // Check ownership: only the submission owner or ADMIN can update this submission
-  if (submission.user_id !== userId && userRole !== "ADMIN") {
+  if (registration.user_id !== userId && userRole !== "ADMIN") {
     throw new Error("Unauthorized to update this submission");
   }
 
@@ -511,7 +560,7 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     const [category] = await db
       .select()
       .from(schema.Category)
-      .where(eq(schema.Category.category_id, submission.category_id))
+      .where(eq(schema.Category.category_id, registration.category_id))
       .limit(1);
 
     if (category) {
@@ -551,14 +600,18 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
   }
 
   await db.transaction(async (tx) => {
-    // Update submission
+    // Only update allowed fields on Submission
+    const updateFields = {
+      updated_by: userId,
+      updated_at: new Date(),
+    };
+    if (submissionFields.project_name !== undefined) updateFields.project_name = submissionFields.project_name;
+    if (submissionFields.description !== undefined) updateFields.description = submissionFields.description;
+    if (submissionFields.flow_application !== undefined) updateFields.flow_application = submissionFields.flow_application;
+
     await tx
       .update(schema.Submission)
-      .set({
-        ...submissionFields,
-        updated_by: userId,
-        updated_at: new Date(),
-      })
+      .set(updateFields)
       .where(eq(schema.Submission.submission_id, id));
 
     // Update links if provided
@@ -587,18 +640,22 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
 
 // Delete submission
 export const deleteSubmission = async (id, userId) => {
-  const [submission] = await db
-    .select()
+  const [row] = await db
+    .select({
+      Submission: schema.Submission,
+      Registration: schema.Registration,
+    })
     .from(schema.Submission)
+    .innerJoin(schema.Registration, eq(schema.Submission.registration_id, schema.Registration.registration_id))
     .where(eq(schema.Submission.submission_id, id))
     .limit(1);
 
-  if (!submission) {
+  if (!row) {
     throw new Error("Submission not found");
   }
 
   // Check ownership
-  if (submission.user_id !== userId) {
+  if (row.Registration.user_id !== userId) {
     throw new Error("Unauthorized to delete this submission");
   }
 

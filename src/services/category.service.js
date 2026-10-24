@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc } from "drizzle-orm";
+import { eq, or, like, and, sql, desc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -306,8 +306,19 @@ export const deleteCategory = async (id) => {
 
   // Delete registrations and submissions inside transaction
   await db.transaction(async (tx) => {
+    const categoryRegistrations = await tx
+      .select({ registration_id: schema.Registration.registration_id })
+      .from(schema.Registration)
+      .where(eq(schema.Registration.category_id, id));
+
+    if (categoryRegistrations.length > 0) {
+      const regIds = categoryRegistrations.map((r) => r.registration_id);
+      await tx
+        .delete(schema.Submission)
+        .where(inArray(schema.Submission.registration_id, regIds));
+    }
+
     await tx.delete(schema.Registration).where(eq(schema.Registration.category_id, id));
-    await tx.delete(schema.Submission).where(eq(schema.Submission.category_id, id));
     await tx.delete(schema.Category).where(eq(schema.Category.category_id, id));
   });
 

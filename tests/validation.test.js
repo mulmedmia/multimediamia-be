@@ -84,8 +84,7 @@ describe("Validation Schemas Suite", () => {
   describe("Submission Validation", () => {
     test("createSubmissionSchema should reject empty links array", () => {
       const invalid = createSubmissionSchema.safeParse({
-        category_id: "cat_123",
-        team_name: "Tim Alpha",
+        registration_id: "reg_123",
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
         flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
@@ -96,8 +95,7 @@ describe("Validation Schemas Suite", () => {
 
     test("createSubmissionSchema should reject invalid link URL", () => {
       const invalid = createSubmissionSchema.safeParse({
-        category_id: "cat_123",
-        team_name: "Tim Alpha",
+        registration_id: "reg_123",
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
         flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
@@ -113,8 +111,7 @@ describe("Validation Schemas Suite", () => {
 
     test("createSubmissionSchema should pass with valid links and required fields", () => {
       const valid = createSubmissionSchema.safeParse({
-        category_id: "cat_123",
-        team_name: "Tim Alpha",
+        registration_id: "reg_123",
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
         flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
