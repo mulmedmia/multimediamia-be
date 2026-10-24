@@ -38,6 +38,7 @@ export const getSubmissions = async (req, res) => {
       limit: req.query.limit,
       category_id: req.query.category_id,
       user_id: req.query.user_id,
+      registration_id: req.query.registration_id,
       status: req.query.status,
       is_verified: req.query.is_verified,
       search: req.query.search,
@@ -131,10 +132,21 @@ export const createNewSubmission = async (req, res) => {
       201
     );
   } catch (error) {
-    if (error.message === "Category not found") {
+    if (
+      error.message === "Category not found" ||
+      error.message === "Registration not found"
+    ) {
       return response.error(res, error.message, 404);
     }
-    if (error.message === "User already has a submission for this category") {
+    if (error.message === "Unauthorized: Registration does not belong to user") {
+      return response.error(res, error.message, 403);
+    }
+    if (
+      error.message === "User already has a submission for this category" ||
+      error.message?.includes("Batas") ||
+      error.message?.includes("Pengumpulan karya") ||
+      error.message?.includes("wajib diisi")
+    ) {
       return response.error(res, error.message, 400);
     }
     return response.error(

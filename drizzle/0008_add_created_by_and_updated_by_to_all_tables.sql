@@ -27,7 +27,12 @@ ALTER TABLE "Submission" ADD COLUMN IF NOT EXISTS "created_by" text;
 --> statement-breakpoint
 ALTER TABLE "Submission" ADD COLUMN IF NOT EXISTS "updated_by" text;
 --> statement-breakpoint
-UPDATE "Submission" SET "created_by" = "user_id", "updated_by" = "user_id" WHERE "created_by" IS NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Submission' AND column_name = 'user_id') THEN
+    UPDATE "Submission" SET "created_by" = "user_id", "updated_by" = "user_id" WHERE "created_by" IS NULL;
+  END IF;
+END $$;
 --> statement-breakpoint
 
 -- SubmissionLink
@@ -35,10 +40,21 @@ ALTER TABLE "SubmissionLink" ADD COLUMN IF NOT EXISTS "created_by" text;
 --> statement-breakpoint
 ALTER TABLE "SubmissionLink" ADD COLUMN IF NOT EXISTS "updated_by" text;
 --> statement-breakpoint
-UPDATE "SubmissionLink" sl
-SET "created_by" = s."user_id", "updated_by" = s."user_id"
-FROM "Submission" s
-WHERE sl."submission_id" = s."submission_id" AND sl."created_by" IS NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Submission' AND column_name = 'user_id') THEN
+    UPDATE "SubmissionLink" sl
+    SET "created_by" = s."user_id", "updated_by" = s."user_id"
+    FROM "Submission" s
+    WHERE sl."submission_id" = s."submission_id" AND sl."created_by" IS NULL;
+  ELSIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'Submission' AND column_name = 'registration_id') THEN
+    UPDATE "SubmissionLink" sl
+    SET "created_by" = r."user_id", "updated_by" = r."user_id"
+    FROM "Submission" s
+    JOIN "Registration" r ON s."registration_id" = r."registration_id"
+    WHERE sl."submission_id" = s."submission_id" AND sl."created_by" IS NULL;
+  END IF;
+END $$;
 --> statement-breakpoint
 
 -- OTP
