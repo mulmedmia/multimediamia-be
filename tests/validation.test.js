@@ -124,6 +124,14 @@ describe("Validation Schemas Suite", () => {
             link_type: "YOUTUBE",
             url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
           },
+          {
+            link_type: "PRESENTATION",
+            url: "https://docs.google.com/presentation/d/123",
+          },
+          {
+            link_type: "ORIGINALITY_STATEMENT",
+            url: "https://drive.google.com/file/d/123/view",
+          },
         ],
       });
       assert.equal(valid.success, true);

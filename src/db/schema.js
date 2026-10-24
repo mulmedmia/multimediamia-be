@@ -13,6 +13,8 @@ export const linkTypeEnum = pgEnum("LinkType", [
   "PROPOSAL",
   "FIGMA",
   "FIGMA_PROTOTYPE",
+  "PRESENTATION",
+  "ORIGINALITY_STATEMENT",
   "OTHER",
 ]);
 export const missionStatusEnum = pgEnum("MissionStatus", ["ACTIVE", "EXPIRED", "DRAFT"]);

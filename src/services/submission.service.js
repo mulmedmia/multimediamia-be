@@ -347,11 +347,17 @@ export const getUserSubmissions = async (userId, filters = {}) => {
 
 // Validasi aturan link khusus kategori Web In Action (WIA)
 const validateWiaLinks = (links = [], category, isFinalPhase = false) => {
-  const proposalLink = links.find(
-    (l) => l.link_type === "PROPOSAL" && l.url && l.url.trim() !== ""
+  const presentationLink = links.find(
+    (l) => l.link_type === "PRESENTATION" && l.url && l.url.trim() !== ""
   );
   const githubLink = links.find(
     (l) => l.link_type === "GITHUB" && l.url && l.url.trim() !== ""
+  );
+  const originalityStatementLink = links.find(
+    (l) => l.link_type === "ORIGINALITY_STATEMENT" && l.url && l.url.trim() !== ""
+  );
+  const proposalLink = links.find(
+    (l) => l.link_type === "PROPOSAL" && l.url && l.url.trim() !== ""
   );
   const deploymentLink = links.find(
     (l) => l.link_type === "DEPLOYMENT" && l.url && l.url.trim() !== ""
@@ -360,15 +366,22 @@ const validateWiaLinks = (links = [], category, isFinalPhase = false) => {
     (l) => l.link_type === "YOUTUBE" && l.url && l.url.trim() !== ""
   );
 
-  if (!proposalLink) {
-    throw new Error("Link draft proposal (Google Docs) wajib diisi untuk kategori Web In Action (WIA).");
+  if (!presentationLink) {
+    throw new Error("Link file presentasi (PowerPoint/Google Slides/Canva) wajib diisi untuk kategori Web In Action (WIA).");
   }
 
   if (!githubLink) {
     throw new Error("Link repository GitHub utama wajib diisi untuk kategori Web In Action (WIA).");
   }
 
+  if (!originalityStatementLink) {
+    throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori Web In Action (WIA).");
+  }
+
   if (isFinalPhase) {
+    if (!proposalLink) {
+      throw new Error("Link draft proposal (Google Docs) wajib diisi pada fase pengumpulan karya final.");
+    }
     if (!deploymentLink) {
       throw new Error("Link deployment / live website wajib diisi pada fase pengumpulan karya final.");
     }
@@ -386,6 +399,9 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
   const figmaLink = links.find(
     (l) => l.link_type === "FIGMA" && l.url && l.url.trim() !== ""
   );
+  const originalityStatementLink = links.find(
+    (l) => l.link_type === "ORIGINALITY_STATEMENT" && l.url && l.url.trim() !== ""
+  );
   const figmaPrototypeLink = links.find(
     (l) => l.link_type === "FIGMA_PROTOTYPE" && l.url && l.url.trim() !== ""
   );
@@ -399,6 +415,10 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
 
   if (!figmaLink) {
     throw new Error("Link desain Figma wajib diisi untuk kategori UI/UX In Action (UIA).");
+  }
+
+  if (!originalityStatementLink) {
+    throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori UI/UX In Action (UIA).");
   }
 
   if (isFinalPhase) {
