@@ -509,6 +509,13 @@ export const createSubmission = async (submissionData, userId) => {
     validateUiaLinks(links, category, isFinalPhase);
   }
 
+  // Validate thumbnail is present
+  const thumbnailUrl =
+    submissionFields.thumbnail_url || submissionFields.thumbnail;
+  if (!thumbnailUrl || typeof thumbnailUrl !== "string" || thumbnailUrl.trim() === "") {
+    throw new Error("Thumbnail karya wajib diunggah");
+  }
+
   // Check if user already has a submission for this registration
   const [existingSubmission] = await db
     .select()
@@ -635,9 +642,15 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     if (submissionFields.description !== undefined) updateFields.description = submissionFields.description;
     if (submissionFields.flow_application !== undefined) updateFields.flow_application = submissionFields.flow_application;
     if (submissionFields.thumbnail_url !== undefined) {
-      updateFields.thumbnail_url = submissionFields.thumbnail_url || null;
+      if (!submissionFields.thumbnail_url || submissionFields.thumbnail_url.trim() === "") {
+        throw new Error("Thumbnail karya wajib diisi");
+      }
+      updateFields.thumbnail_url = submissionFields.thumbnail_url;
     } else if (submissionFields.thumbnail !== undefined) {
-      updateFields.thumbnail_url = submissionFields.thumbnail || null;
+      if (!submissionFields.thumbnail || submissionFields.thumbnail.trim() === "") {
+        throw new Error("Thumbnail karya wajib diisi");
+      }
+      updateFields.thumbnail_url = submissionFields.thumbnail;
     }
 
     await tx

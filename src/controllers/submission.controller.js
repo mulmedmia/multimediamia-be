@@ -174,6 +174,11 @@ export const createNewSubmission = async (req, res) => {
       submissionData.thumbnail_url = submissionData.thumbnail;
     }
 
+    // Reject early if thumbnail file/URL is completely missing
+    if (!thumbnailFile && !submissionData.thumbnail_url && !submissionData.thumbnail) {
+      return response.error(res, "Thumbnail karya wajib diunggah", 400);
+    }
+
     // Validate data
     const validation = createSubmissionSchema.safeParse(submissionData);
     if (!validation.success) {
@@ -201,7 +206,8 @@ export const createNewSubmission = async (req, res) => {
       error.message === "User already has a submission for this category" ||
       error.message?.includes("Batas") ||
       error.message?.includes("Pengumpulan karya") ||
-      error.message?.includes("wajib diisi")
+      error.message?.includes("wajib diisi") ||
+      error.message?.includes("wajib diunggah")
     ) {
       return response.error(res, error.message, 400);
     }
@@ -283,6 +289,14 @@ export const updateExistingSubmission = async (req, res) => {
     }
     if (error.message === "Unauthorized to update this submission") {
       return response.error(res, error.message, 403);
+    }
+    if (
+      error.message?.includes("Batas") ||
+      error.message?.includes("Pengumpulan karya") ||
+      error.message?.includes("wajib diisi") ||
+      error.message?.includes("wajib diunggah")
+    ) {
+      return response.error(res, error.message, 400);
     }
     return response.error(
       res,

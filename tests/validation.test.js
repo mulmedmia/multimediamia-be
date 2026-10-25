@@ -115,6 +115,7 @@ describe("Validation Schemas Suite", () => {
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
         flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
+        thumbnail_url: "https://ik.imagekit.io/mia2026/submission-thumbnails/test.webp",
         links: [
           {
             link_type: "GITHUB",
@@ -152,6 +153,23 @@ describe("Validation Schemas Suite", () => {
         ],
       });
       assert.equal(valid.success, true);
+    });
+
+    test("createSubmissionSchema should reject missing thumbnail_url and thumbnail", () => {
+      const invalid = createSubmissionSchema.safeParse({
+        registration_id: "reg_123",
+        project_name: "Project Beta",
+        description: "Deskripsi project yang memenuhi syarat minimal karakter",
+        flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
+        links: [
+          {
+            link_type: "GITHUB",
+            url: "https://github.com/mia2026/project",
+          },
+        ],
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(invalid.error.issues.some((i) => i.path.includes("thumbnail_url")));
     });
 
     test("createSubmissionSchema should reject invalid thumbnail_url format", () => {

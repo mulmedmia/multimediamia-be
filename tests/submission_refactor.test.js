@@ -93,6 +93,24 @@ describe("Submission Registration Refactor Integration Suite", () => {
     );
   });
 
+  test("3b. Reject submission if thumbnail_url is missing", async () => {
+    await assert.rejects(
+      async () => {
+        await createSubmission(
+          {
+            registration_id: testRegId,
+            project_name: "My App",
+            description: "Deskripsi aplikasi yang lebih dari 10 karakter",
+            flow_application: "Flow aplikasi lengkap dan jelas",
+            links: [{ link_type: "OTHER", url: "https://example.com" }],
+          },
+          testUserId
+        );
+      },
+      { message: "Thumbnail karya wajib diunggah" }
+    );
+  });
+
   test("4. Reject submission if registration belongs to another user", async () => {
     await assert.rejects(
       async () => {
@@ -118,6 +136,7 @@ describe("Submission Registration Refactor Integration Suite", () => {
         project_name: "Garuda App",
         description: "Deskripsi project Garuda App lebih dari 10 karakter",
         flow_application: "Flow aplikasi Garuda lengkap dan detail",
+        thumbnail_url: "https://ik.imagekit.io/mia2026/test.webp",
         links: [{ link_type: "OTHER", url: "https://garuda.app" }],
       },
       testUserId
@@ -142,7 +161,8 @@ describe("Submission Registration Refactor Integration Suite", () => {
             project_name: "Garuda App 2",
             description: "Deskripsi kedua project Garuda App",
             flow_application: "Flow aplikasi Garuda lengkap",
-            links: [{ link_type: "OTHER", url: "https://garuda2.app" }],
+            thumbnail_url: "https://ik.imagekit.io/mia2026/test.webp",
+        links: [{ link_type: "OTHER", url: "https://garuda2.app" }],
           },
           testUserId
         );
