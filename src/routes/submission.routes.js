@@ -13,6 +13,22 @@ import {
   optionalAuth,
   isAdmin,
 } from "../middleware/jwtAuth.js";
+import upload from "../lib/multer.js";
+
+const handleThumbnailUpload = (req, res, next) => {
+  upload.fields([
+    { name: "thumbnail", maxCount: 1 },
+    { name: "image", maxCount: 1 },
+  ])(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({
+        success: false,
+        message: err.message || "Failed to process thumbnail file",
+      });
+    }
+    next();
+  });
+};
 
 const router = Router();
 
@@ -24,8 +40,8 @@ router.get("/", optionalAuth, getSubmissions);
 router.get("/:id", optionalAuth, getSubmission);
 
 // User CRUD routes (authenticated)
-router.post("/", authenticateToken, createNewSubmission);
-router.patch("/:id", authenticateToken, updateExistingSubmission);
+router.post("/", authenticateToken, handleThumbnailUpload, createNewSubmission);
+router.patch("/:id", authenticateToken, handleThumbnailUpload, updateExistingSubmission);
 router.delete("/:id", authenticateToken, deleteSubmissionById);
 
 

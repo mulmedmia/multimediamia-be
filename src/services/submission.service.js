@@ -142,6 +142,8 @@ export const getAllSubmissions = async (filters = {}) => {
           : null,
         created_by_name: isPublicView ? undefined : (row.creator?.name || row.Submission.created_by || "-"),
         updated_by_name: isPublicView ? undefined : (row.updater?.name || row.Submission.updated_by || "-"),
+        thumbnail: row.Submission.thumbnail_url || null,
+        thumbnail_url: row.Submission.thumbnail_url || null,
         links: [],
       };
     }
@@ -229,6 +231,8 @@ export const getSubmissionById = async (
       : null,
     created_by_name: isPublicView ? undefined : (details[0].creator?.name || details[0].Submission.created_by || "-"),
     updated_by_name: isPublicView ? undefined : (details[0].updater?.name || details[0].Submission.updated_by || "-"),
+    thumbnail: details[0].Submission.thumbnail_url || null,
+    thumbnail_url: details[0].Submission.thumbnail_url || null,
     links: [],
   };
 
@@ -324,6 +328,8 @@ export const getUserSubmissions = async (userId, filters = {}) => {
               category_name: row.Category.name,
             }
           : null,
+        thumbnail: row.Submission.thumbnail_url || null,
+        thumbnail_url: row.Submission.thumbnail_url || null,
         links: [],
       };
     }
@@ -374,13 +380,12 @@ const validateWiaLinks = (links = [], category, isFinalPhase = false) => {
     throw new Error("Link repository GitHub utama wajib diisi untuk kategori Web In Action (WIA).");
   }
 
-  if (!originalityStatementLink) {
-    throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori Web In Action (WIA).");
-  }
-
   if (isFinalPhase) {
     if (!proposalLink) {
       throw new Error("Link draft proposal (Google Docs) wajib diisi pada fase pengumpulan karya final.");
+    }
+    if (!originalityStatementLink) {
+      throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori Web In Action (WIA).");
     }
     if (!deploymentLink) {
       throw new Error("Link deployment / live website wajib diisi pada fase pengumpulan karya final.");
@@ -417,11 +422,10 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
     throw new Error("Link desain Figma wajib diisi untuk kategori UI/UX In Action (UIA).");
   }
 
-  if (!originalityStatementLink) {
-    throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori UI/UX In Action (UIA).");
-  }
-
   if (isFinalPhase) {
+    if (!originalityStatementLink) {
+      throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori Web In Action (WIA).");
+    }
     if (!figmaPrototypeLink) {
       throw new Error("Link prototipe Figma wajib diisi pada fase pengumpulan karya final.");
     }
@@ -505,6 +509,13 @@ export const createSubmission = async (submissionData, userId) => {
     validateUiaLinks(links, category, isFinalPhase);
   }
 
+  // Validate thumbnail is present
+  const thumbnailUrl =
+    submissionFields.thumbnail_url || submissionFields.thumbnail;
+  if (!thumbnailUrl || typeof thumbnailUrl !== "string" || thumbnailUrl.trim() === "") {
+    throw new Error("Thumbnail karya wajib diunggah");
+  }
+
   // Check if user already has a submission for this registration
   const [existingSubmission] = await db
     .select()
@@ -526,6 +537,8 @@ export const createSubmission = async (submissionData, userId) => {
       project_name: submissionFields.project_name,
       description: submissionFields.description,
       flow_application: submissionFields.flow_application,
+      thumbnail_url:
+        submissionFields.thumbnail_url || submissionFields.thumbnail || null,
       status: "PENDING",
       is_verified: false,
       created_by: userId,
@@ -628,6 +641,17 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     if (submissionFields.project_name !== undefined) updateFields.project_name = submissionFields.project_name;
     if (submissionFields.description !== undefined) updateFields.description = submissionFields.description;
     if (submissionFields.flow_application !== undefined) updateFields.flow_application = submissionFields.flow_application;
+    if (submissionFields.thumbnail_url !== undefined) {
+      if (!submissionFields.thumbnail_url || submissionFields.thumbnail_url.trim() === "") {
+        throw new Error("Thumbnail karya wajib diisi");
+      }
+      updateFields.thumbnail_url = submissionFields.thumbnail_url;
+    } else if (submissionFields.thumbnail !== undefined) {
+      if (!submissionFields.thumbnail || submissionFields.thumbnail.trim() === "") {
+        throw new Error("Thumbnail karya wajib diisi");
+      }
+      updateFields.thumbnail_url = submissionFields.thumbnail;
+    }
 
     await tx
       .update(schema.Submission)
