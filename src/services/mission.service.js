@@ -504,7 +504,11 @@ export const getActiveMissionsForUser = async (
   const targetRegId = activeReg?.registration_id || null;
   const effectiveCategoryId = categoryId || activeReg?.category_id || null;
 
-  const whereConditions = [eq(schema.Mission.status, "ACTIVE")];
+  const whereConditions = [or(
+    eq(schema.Mission.status, "ACTIVE"), 
+    eq(schema.Mission.status, "EXPIRED")
+  )];
+  
   if (effectiveCategoryId) {
     whereConditions.push(
       or(
