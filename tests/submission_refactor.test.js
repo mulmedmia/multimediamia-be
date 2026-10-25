@@ -24,6 +24,7 @@ describe("Submission Registration Refactor Integration Suite", () => {
   test("1. Schema columns verification", () => {
     const submissionColumns = Object.keys(schema.Submission);
     assert.equal(submissionColumns.includes("registration_id"), true);
+    assert.equal(submissionColumns.includes("thumbnail_url"), true);
     assert.equal(submissionColumns.includes("user_id"), false);
     assert.equal(submissionColumns.includes("category_id"), false);
     assert.equal(submissionColumns.includes("team_name"), false);

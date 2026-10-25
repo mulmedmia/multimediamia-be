@@ -16,6 +16,40 @@ import {
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
 import { eq } from "drizzle-orm";
+import path from "path";
+import sharp from "sharp";
+import imagekit from "../lib/imagekit.js";
+
+// Handle artwork thumbnail upload to ImageKit with high-speed WebP conversion and auto-resize
+export const uploadThumbnailToImageKit = async (file) => {
+  let fileBuffer = file.buffer;
+  let fileName = `${Date.now()}_${file.originalname}`;
+
+  try {
+    const webpBuffer = await sharp(file.buffer)
+      .resize({ width: 1920, withoutEnlargement: true })
+      .webp({ quality: 80, effort: 2 })
+      .toBuffer();
+
+    fileBuffer = webpBuffer;
+    const baseName = path.parse(file.originalname).name || "thumbnail";
+    fileName = `${Date.now()}_${baseName}.webp`;
+  } catch (conversionError) {
+    console.warn("Failed to convert thumbnail to WebP, uploading original buffer:", conversionError.message);
+  }
+
+  // Convert file buffer to base64
+  const base64Image = fileBuffer.toString("base64");
+
+  // Upload to ImageKit in submission-thumbnails folder
+  const result = await imagekit.upload({
+    file: base64Image,
+    fileName,
+    folder: "/submission-thumbnails",
+  });
+
+  return result.url;
+};
 
 const getJuriCategory = async (userId) => {
   const [juri] = await db
@@ -115,8 +149,30 @@ export const getSubmission = async (req, res) => {
 // Create new submission (user_id from JWT)
 export const createNewSubmission = async (req, res) => {
   try {
-    const submissionData = req.body;
+    const submissionData = { ...req.body };
     const userId = req.user.userId; // Fix: gunakan field yang benar dari JWT
+
+    // Handle stringified links from multipart/form-data
+    if (typeof submissionData.links === "string") {
+      try {
+        submissionData.links = JSON.parse(submissionData.links);
+      } catch (err) {
+        // keep as is
+      }
+    }
+
+    // Handle file upload to ImageKit
+    const thumbnailFile =
+      req.file ||
+      req.files?.thumbnail?.[0] ||
+      req.files?.image?.[0];
+    if (thumbnailFile) {
+      const uploadedUrl = await uploadThumbnailToImageKit(thumbnailFile);
+      submissionData.thumbnail_url = uploadedUrl;
+      submissionData.thumbnail = uploadedUrl;
+    } else if (submissionData.thumbnail && !submissionData.thumbnail_url) {
+      submissionData.thumbnail_url = submissionData.thumbnail;
+    }
 
     // Validate data
     const validation = createSubmissionSchema.safeParse(submissionData);
@@ -162,7 +218,7 @@ export const createNewSubmission = async (req, res) => {
 export const updateExistingSubmission = async (req, res) => {
   try {
     const submissionId = req.params.id;
-    const submissionData = req.body;
+    const submissionData = { ...req.body };
     const userId = req.user.userId;
     const userRole = req.user.role;
 
@@ -180,6 +236,28 @@ export const updateExistingSubmission = async (req, res) => {
           403
         );
       }
+    }
+
+    // Handle stringified links from multipart/form-data
+    if (typeof submissionData.links === "string") {
+      try {
+        submissionData.links = JSON.parse(submissionData.links);
+      } catch (err) {
+        // keep as is
+      }
+    }
+
+    // Handle file upload to ImageKit
+    const thumbnailFile =
+      req.file ||
+      req.files?.thumbnail?.[0] ||
+      req.files?.image?.[0];
+    if (thumbnailFile) {
+      const uploadedUrl = await uploadThumbnailToImageKit(thumbnailFile);
+      submissionData.thumbnail_url = uploadedUrl;
+      submissionData.thumbnail = uploadedUrl;
+    } else if (submissionData.thumbnail && !submissionData.thumbnail_url) {
+      submissionData.thumbnail_url = submissionData.thumbnail;
     }
 
     // Validate data

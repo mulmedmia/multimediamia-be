@@ -12,6 +12,18 @@ export const createSubmissionSchema = z.object({
   flow_application: z
     .string()
     .min(10, "Flow application must be at least 10 characters"),
+  thumbnail_url: z
+    .string()
+    .url("Valid thumbnail URL is required")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  thumbnail: z
+    .string()
+    .url("Valid thumbnail URL is required")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   links: z
     .array(
       z.object({
@@ -50,6 +62,18 @@ export const updateSubmissionSchema = z.object({
     .string()
     .min(10, "Flow application must be at least 10 characters")
     .optional(),
+  thumbnail_url: z
+    .string()
+    .url("Valid thumbnail URL is required")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
+  thumbnail: z
+    .string()
+    .url("Valid thumbnail URL is required")
+    .optional()
+    .nullable()
+    .or(z.literal("")),
   links: z
     .array(
       z.object({
