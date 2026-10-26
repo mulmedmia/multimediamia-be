@@ -539,6 +539,7 @@ export const createSubmission = async (submissionData, userId) => {
       flow_application: submissionFields.flow_application,
       thumbnail_url:
         submissionFields.thumbnail_url || submissionFields.thumbnail || null,
+      admin_feedback: submissionFields.admin_feedback || null,
       status: "PENDING",
       is_verified: false,
       created_by: userId,
@@ -651,6 +652,9 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
         throw new Error("Thumbnail karya wajib diisi");
       }
       updateFields.thumbnail_url = submissionFields.thumbnail;
+    }
+    if (submissionFields.admin_feedback !== undefined) {
+      updateFields.admin_feedback = submissionFields.admin_feedback;
     }
 
     await tx

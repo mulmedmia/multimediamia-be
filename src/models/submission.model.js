@@ -21,6 +21,12 @@ export const createSubmissionSchema = z
       .string()
       .url("Valid thumbnail URL is required")
       .optional(),
+    admin_feedback: z
+      .string()
+      .trim()
+      .max(200, "Admin feedback must not exceed 2000 characters")
+      .nullable()
+      .optional(),
     links: z
       .array(
         z.object({
@@ -79,6 +85,12 @@ export const updateSubmissionSchema = z.object({
     .min(1, "Thumbnail karya tidak boleh kosong")
     .url("Valid thumbnail URL is required")
     .optional(),
+  admin_feedback: z
+    .string()
+    .trim()
+    .max(200, "Admin feedback must not exceed 2000 characters")
+    .nullable()
+    .optional(),
   links: z
     .array(
       z.object({
@@ -105,4 +117,10 @@ export const updateSubmissionSchema = z.object({
 export const updateSubmissionStatusSchema = z.object({
   status: z.enum(["PENDING", "APPROVED", "REJECTED", "REVISION"]),
   is_verified: z.boolean().optional(),
+  admin_feedback: z
+    .string()
+    .trim()
+    .max(200, "Admin feedback must not exceed 2000 characters")
+    .nullable()
+    .optional(),
 });
