@@ -13,6 +13,12 @@ export const createSubmissionSchema = z
     flow_application: z
       .string()
       .min(10, "Flow application must be at least 10 characters"),
+    sub_theme: z
+      .union([
+        z.string().trim().min(1, "Sub-tema wajib dipilih").max(1000, "Sub-tema maksimal 1000 karakter"),
+        z.array(z.string().trim().min(1)).min(1, "Pilih minimal satu sub-tema"),
+      ])
+      .optional(),
     thumbnail_url: z
       .string()
       .url("Valid thumbnail URL is required")
@@ -74,6 +80,12 @@ export const updateSubmissionSchema = z.object({
   flow_application: z
     .string()
     .min(10, "Flow application must be at least 10 characters")
+    .optional(),
+  sub_theme: z
+    .union([
+      z.string().trim().min(1, "Sub-tema tidak boleh kosong").max(1000, "Sub-tema maksimal 1000 karakter"),
+      z.array(z.string().trim().min(1)).min(1, "Pilih minimal satu sub-tema"),
+    ])
     .optional(),
   thumbnail_url: z
     .string()

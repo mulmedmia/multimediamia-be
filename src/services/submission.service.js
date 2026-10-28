@@ -7,6 +7,19 @@ import { generateCuid } from "../db/cuid.js";
 const creatorUser = alias(schema.User, "creatorUser");
 const updaterUser = alias(schema.User, "updaterUser");
 
+export function normalizeSubTheme(val) {
+  if (!val) return null;
+  if (Array.isArray(val)) {
+    const cleaned = val.map((item) => String(item).trim()).filter(Boolean);
+    return cleaned.length > 0 ? cleaned.join(", ") : null;
+  }
+  if (typeof val === "string") {
+    const trimmed = val.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+}
+
 // Get all submissions with filtering
 export const getAllSubmissions = async (filters = {}) => {
   const {
@@ -16,6 +29,7 @@ export const getAllSubmissions = async (filters = {}) => {
     status,
     is_verified,
     search,
+    sub_theme,
     show_it = false,
     isStaff = false,
   } = filters;
@@ -45,6 +59,9 @@ export const getAllSubmissions = async (filters = {}) => {
   if (is_verified !== undefined) {
     conditions.push(eq(schema.Submission.is_verified, is_verified === "true" || is_verified === true));
   }
+  if (sub_theme && sub_theme !== "ALL") {
+    conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
+  }
   if (search && search.trim() !== "") {
     const searchPattern = `%${search.trim()}%`;
     conditions.push(
@@ -52,7 +69,8 @@ export const getAllSubmissions = async (filters = {}) => {
         ilike(schema.User.name, searchPattern),
         ilike(schema.User.email, searchPattern),
         ilike(schema.Submission.project_name, searchPattern),
-        ilike(schema.Registration.team_name, searchPattern)
+        ilike(schema.Registration.team_name, searchPattern),
+        ilike(schema.Submission.sub_theme, searchPattern)
       )
     );
   }
@@ -424,7 +442,7 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
 
   if (isFinalPhase) {
     if (!originalityStatementLink) {
-      throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori Web In Action (WIA).");
+      throw new Error("Link surat keterangan orisinil karya bermaterai 10.000 wajib diisi untuk kategori UI/UX In Action (UIA).");
     }
     if (!figmaPrototypeLink) {
       throw new Error("Link prototipe Figma wajib diisi pada fase pengumpulan karya final.");
@@ -494,19 +512,32 @@ export const createSubmission = async (submissionData, userId) => {
     throw new Error("Batas pengumpulan karya sementara telah berakhir. Menunggu admin membuka fase perbaikan.");
   }
 
-  // Khusus kategori WIA & UIA, validasi field link yang wajib
-  if (category.slug?.toUpperCase() === "WIA") {
+  const catSlug = (category.slug || "").toUpperCase();
+  const catName = (category.name || "").toUpperCase();
+  const isWiaCategory = catSlug === "WIA" || catSlug === "WEB DEVELOPMENT" || catName.includes("WEB IN ACTION");
+  const isUiaCategory = catSlug === "UIA" || catSlug === "UI/UX DESIGN" || catName.includes("UI/UX");
+
+  const normalizedSubTheme = normalizeSubTheme(submissionFields.sub_theme);
+
+  // Khusus kategori WIA & UIA, validasi field link yang wajib dan sub-tema
+  if (isWiaCategory) {
     const isFinalPhase = Boolean(
       category.allow_revision ||
       (preliminaryDeadline && now > preliminaryDeadline)
     );
     validateWiaLinks(links, category, isFinalPhase);
-  } else if (category.slug?.toUpperCase() === "UIA") {
+    if (!normalizedSubTheme) {
+      throw new Error("Sub-tema wajib dipilih untuk kategori Web In Action (WIA).");
+    }
+  } else if (isUiaCategory) {
     const isFinalPhase = Boolean(
       category.allow_revision ||
       (preliminaryDeadline && now > preliminaryDeadline)
     );
     validateUiaLinks(links, category, isFinalPhase);
+    if (!normalizedSubTheme) {
+      throw new Error("Sub-tema wajib dipilih untuk kategori UI/UX In Action (UIA).");
+    }
   }
 
   // Validate thumbnail is present
@@ -537,6 +568,7 @@ export const createSubmission = async (submissionData, userId) => {
       project_name: submissionFields.project_name,
       description: submissionFields.description,
       flow_application: submissionFields.flow_application,
+      sub_theme: normalizedSubTheme,
       thumbnail_url:
         submissionFields.thumbnail_url || submissionFields.thumbnail || null,
       admin_feedback: submissionFields.admin_feedback || null,
@@ -624,9 +656,11 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
           category.allow_revision ||
           (preliminaryDeadline && now > preliminaryDeadline)
         );
-        if (category.slug?.toUpperCase() === "WIA") {
+        const editCatSlug = (category.slug || "").toUpperCase();
+        const editCatName = (category.name || "").toUpperCase();
+        if (editCatSlug === "WIA" || editCatSlug === "WEB DEVELOPMENT" || editCatName.includes("WEB IN ACTION")) {
           validateWiaLinks(links, category, isFinalPhase);
-        } else if (category.slug?.toUpperCase() === "UIA") {
+        } else if (editCatSlug === "UIA" || editCatSlug === "UI/UX DESIGN" || editCatName.includes("UI/UX")) {
           validateUiaLinks(links, category, isFinalPhase);
         }
       }
@@ -642,6 +676,9 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     if (submissionFields.project_name !== undefined) updateFields.project_name = submissionFields.project_name;
     if (submissionFields.description !== undefined) updateFields.description = submissionFields.description;
     if (submissionFields.flow_application !== undefined) updateFields.flow_application = submissionFields.flow_application;
+    if (submissionFields.sub_theme !== undefined) {
+      updateFields.sub_theme = normalizeSubTheme(submissionFields.sub_theme);
+    }
     if (submissionFields.thumbnail_url !== undefined) {
       if (!submissionFields.thumbnail_url || submissionFields.thumbnail_url.trim() === "") {
         throw new Error("Thumbnail karya wajib diisi");
