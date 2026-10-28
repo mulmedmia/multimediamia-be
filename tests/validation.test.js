@@ -7,7 +7,11 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
 } from "../src/models/auth.model.js";
-import { createSubmissionSchema } from "../src/models/submission.model.js";
+import {
+  createSubmissionSchema,
+  updateSubmissionSchema,
+  updateSubmissionStatusSchema,
+} from "../src/models/submission.model.js";
 import { createRegistrationSchema } from "../src/models/registration.model.js";
 import {
   validateReferralCodeSchema,
@@ -188,6 +192,41 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(invalid.success, false);
       assert.ok(invalid.error.issues.some((i) => i.path.includes("thumbnail_url")));
+    });
+
+    test("createSubmissionSchema should accept optional admin_feedback", () => {
+      const valid = createSubmissionSchema.safeParse({
+        registration_id: "reg_123",
+        project_name: "Project Beta",
+        description: "Deskripsi project yang memenuhi syarat minimal karakter",
+        flow_application: "Flow aplikasi lengkap yang memenuhi syarat minimal",
+        thumbnail_url: "https://ik.imagekit.io/mia2026/submission-thumbnails/test.webp",
+        admin_feedback: "Catatan dari admin",
+        links: [
+          {
+            link_type: "GITHUB",
+            url: "https://github.com/mia2026/project",
+          },
+        ],
+      });
+      assert.equal(valid.success, true);
+    });
+
+    test("updateSubmissionSchema should accept optional admin_feedback", () => {
+      const valid = updateSubmissionSchema.safeParse({
+        admin_feedback: "Perbaiki bagian responsivitas",
+      });
+      assert.equal(valid.success, true);
+    });
+
+    test("updateSubmissionStatusSchema should accept optional admin_feedback", () => {
+      const valid = updateSubmissionStatusSchema.safeParse({
+        status: "APPROVED",
+        is_verified: true,
+        admin_feedback: "Karya disetujui untuk Show It",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.admin_feedback, "Karya disetujui untuk Show It");
     });
   });
 
