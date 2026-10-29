@@ -119,6 +119,7 @@ export const Submission = pgTable(
     flow_application: text("flow_application").notNull(),
     thumbnail_url: text("thumbnail_url"),
     admin_feedback: text("admin_feedback"),
+    sub_theme: text("sub_theme"),
     status: submissionStatusEnum("status").default("PENDING").notNull(),
     is_verified: boolean("is_verified").default(false).notNull(),
     created_by: text("created_by"),
