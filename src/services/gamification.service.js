@@ -231,7 +231,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
         .returning();
 
       if (!p) {
-        throw new Error("Product is out of stock");
+        throw new Error("Sorry, product is out of stock :(");
       }
       updatedProduct = p;
     } else {
@@ -554,6 +554,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
           registration_id: row.Registration.registration_id,
           category_id: row.Registration.category_id,
           category_name: row.regCategory?.name || null,
+          category_slug: row.regCategory?.slug || null,
           team_name: row.Registration.team_name,
         }
       : null,

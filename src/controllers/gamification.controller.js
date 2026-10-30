@@ -237,7 +237,7 @@ export const redeemProductController = async (req, res) => {
     }
     if (
       error.message === "Insufficient points" ||
-      error.message === "Product is out of stock" ||
+      error.message === "Sorry, product is out of stock :(" ||
       error.message === "Product is not active" ||
       error.message.includes("1 kali") ||
       error.message.includes("hanya dapat di-redeem")

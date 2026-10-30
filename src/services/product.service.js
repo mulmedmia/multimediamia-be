@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, gte, lte, isNull } from "drizzle-orm";
+import { eq, or, like, and, sql, gte, lte, isNull, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -77,7 +77,7 @@ export const getAllProducts = async (filters = {}) => {
       .leftJoin(creatorUser, eq(schema.product.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.product.updated_by, updaterUser.users_id))
       .where(whereClause)
-      .orderBy(desc(schema.product.created_at))
+      .orderBy(asc(schema.product.name))
       .limit(Number(limit))
       .offset(skip),
     db
