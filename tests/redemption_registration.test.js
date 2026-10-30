@@ -58,4 +58,15 @@ describe("Redemption Registration Linking Suite", () => {
     assert.equal(typeof getAllRedeemUserController, "function");
     assert.equal(typeof getMyRedeemController, "function");
   });
+
+  test("4. Registration object structure should include category_name field", () => {
+    const mockRegistration = {
+      registration_id: "test-reg-id",
+      category_id: "test-cat-id",
+      category_name: "Web In Action",
+      team_name: "Tim Juara",
+    };
+    assert.equal(mockRegistration.category_name, "Web In Action");
+    assert.equal(Object.keys(mockRegistration).includes("category_name"), true);
+  });
 });

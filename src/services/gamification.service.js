@@ -6,6 +6,7 @@ import { generateCuid } from "../db/cuid.js";
 
 const creatorUser = alias(schema.User, "creatorUser");
 const updaterUser = alias(schema.User, "updaterUser");
+const regCategory = alias(schema.Category, "regCategory");
 
 // Update user points (Admin/Mentor only - legacy compatibility)
 export const updateUserPoints = async (userId, pointsToAdd, adminId = null) => {
@@ -145,23 +146,40 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   }
 
   let [reg] = await db
-    .select()
+    .select({
+      registration: schema.Registration,
+      category: schema.Category,
+    })
     .from(schema.Registration)
+    .leftJoin(
+      schema.Category,
+      eq(schema.Registration.category_id, schema.Category.category_id)
+    )
     .where(and(...regConditions))
     .limit(1);
 
   // Jika tidak ditemukan dengan kategori target spesifik, fallback ke registrasi user pertama
   if (!reg) {
     [reg] = await db
-      .select()
+      .select({
+        registration: schema.Registration,
+        category: schema.Category,
+      })
       .from(schema.Registration)
+      .leftJoin(
+        schema.Category,
+        eq(schema.Registration.category_id, schema.Category.category_id)
+      )
       .where(eq(schema.Registration.user_id, userId))
       .limit(1);
   }
 
-  if (!reg) {
+  if (!reg || !reg.registration) {
     throw new Error("Pendaftaran/tim tidak ditemukan untuk pengguna ini.");
   }
+
+  const currentRegistration = reg.registration;
+  const currentCategory = reg.category;
 
   // Jika produk hanya bisa di-redeem 1x, validasi quantity dan cek apakah tim/pendaftaran sudah pernah redeem sebelumnya
   if (product.is_single_redeem) {
@@ -174,7 +192,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       .from(schema.Redemption)
       .where(
         and(
-          eq(schema.Redemption.registration_id, reg.registration_id),
+          eq(schema.Redemption.registration_id, currentRegistration.registration_id),
           eq(schema.Redemption.product_id, productId)
         )
       )
@@ -250,7 +268,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       .set(regUpdateFields)
       .where(
         and(
-          eq(schema.Registration.registration_id, reg.registration_id),
+          eq(schema.Registration.registration_id, currentRegistration.registration_id),
           gte(schema.Registration.diamond, pointsNeeded)
         )
       )
@@ -266,7 +284,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       .insert(schema.Redemption)
       .values({
         redemption_id: redemptionId,
-        registration_id: reg.registration_id,
+        registration_id: currentRegistration.registration_id,
         product_id: productId,
         points_used: pointsNeeded,
         quantity: qty,
@@ -276,11 +294,12 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   });
 
   return {
-    registration_id: reg.registration_id,
+    registration_id: currentRegistration.registration_id,
     redemption_id: redemptionId,
     registration: {
       registration_id: updatedRegistration.registration_id,
       category_id: updatedRegistration.category_id,
+      category_name: currentCategory?.name || null,
       team_name: updatedRegistration.team_name,
       diamond: updatedRegistration.diamond,
       xp: updatedRegistration.xp,
@@ -348,6 +367,7 @@ export const getAllRedeemUser = async (filters = {}) => {
       .select({
         Redemption: schema.Redemption,
         Registration: schema.Registration,
+        regCategory: regCategory,
         User: schema.User,
         product: schema.product,
         category: schema.Category,
@@ -358,6 +378,10 @@ export const getAllRedeemUser = async (filters = {}) => {
       .leftJoin(
         schema.Registration,
         eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
+      .leftJoin(
+        regCategory,
+        eq(schema.Registration.category_id, regCategory.category_id)
       )
       .leftJoin(
         schema.User,
@@ -379,6 +403,10 @@ export const getAllRedeemUser = async (filters = {}) => {
         eq(schema.Redemption.registration_id, schema.Registration.registration_id)
       )
       .leftJoin(
+        regCategory,
+        eq(schema.Registration.category_id, regCategory.category_id)
+      )
+      .leftJoin(
         schema.User,
         eq(schema.Registration.user_id, schema.User.users_id)
       )
@@ -395,6 +423,8 @@ export const getAllRedeemUser = async (filters = {}) => {
           registration_id: row.Registration.registration_id,
           user_id: row.Registration.user_id,
           category_id: row.Registration.category_id,
+          category_name: row.regCategory?.name || null,
+          category_slug: row.regCategory?.slug || null,
           team_name: row.Registration.team_name,
           team_members: row.Registration.team_members,
         }
@@ -482,6 +512,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
       .select({
         Redemption: schema.Redemption,
         Registration: schema.Registration,
+        regCategory: regCategory,
         product: schema.product,
         category: schema.Category,
       })
@@ -489,6 +520,10 @@ export const getMyRedeem = async (userId, filters = {}) => {
       .innerJoin(
         schema.Registration,
         eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
+      .leftJoin(
+        regCategory,
+        eq(schema.Registration.category_id, regCategory.category_id)
       )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
@@ -503,6 +538,10 @@ export const getMyRedeem = async (userId, filters = {}) => {
         schema.Registration,
         eq(schema.Redemption.registration_id, schema.Registration.registration_id)
       )
+      .leftJoin(
+        regCategory,
+        eq(schema.Registration.category_id, regCategory.category_id)
+      )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .where(whereClause),
   ]);
@@ -514,6 +553,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
       ? {
           registration_id: row.Registration.registration_id,
           category_id: row.Registration.category_id,
+          category_name: row.regCategory?.name || null,
           team_name: row.Registration.team_name,
         }
       : null,
