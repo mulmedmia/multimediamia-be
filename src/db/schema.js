@@ -191,17 +191,28 @@ export const product = pgTable("product", {
 });
 
 // Redemption Model Table
-export const Redemption = pgTable("Redemption", {
-  redemption_id: text("redemption_id").primaryKey(),
-  user_id: text("user_id").notNull().references(() => User.users_id),
-  product_id: text("product_id").notNull().references(() => product.product_id),
-  points_used: integer("points_used").notNull(),
-  quantity: integer("quantity").default(1).notNull(),
-  created_by: text("created_by"),
-  updated_by: text("updated_by"),
-  created_at: timestamp("created_at").defaultNow().notNull(),
-  updated_at: timestamp("updated_at").defaultNow(),
-});
+export const Redemption = pgTable(
+  "Redemption",
+  {
+    redemption_id: text("redemption_id").primaryKey(),
+    registration_id: text("registration_id")
+      .notNull()
+      .references(() => Registration.registration_id, { onDelete: "cascade" }),
+    product_id: text("product_id")
+      .notNull()
+      .references(() => product.product_id),
+    points_used: integer("points_used").notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    created_by: text("created_by"),
+    updated_by: text("updated_by"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [
+    index("idx_redemption_registration_id").on(table.registration_id),
+    index("idx_redemption_product_id").on(table.product_id),
+  ]
+);
 
 // Juri Model Table
 export const Juri = pgTable("Juri", {

@@ -344,12 +344,17 @@ export const deleteRegistration = async (id) => {
     throw new Error("Registration not found");
   }
 
-  // Delete registrations and submissions inside transaction
+  // Delete registrations, submissions, and redemptions inside transaction
   await db.transaction(async (tx) => {
     // Delete associated submissions
     await tx
       .delete(schema.Submission)
       .where(eq(schema.Submission.registration_id, id));
+
+    // Delete associated redemptions
+    await tx
+      .delete(schema.Redemption)
+      .where(eq(schema.Redemption.registration_id, id));
 
     // Delete registration
     await tx

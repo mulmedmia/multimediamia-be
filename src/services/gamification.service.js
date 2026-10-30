@@ -163,7 +163,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     throw new Error("Pendaftaran/tim tidak ditemukan untuk pengguna ini.");
   }
 
-  // Jika produk hanya bisa di-redeem 1x, validasi quantity dan cek apakah user sudah pernah redeem sebelumnya
+  // Jika produk hanya bisa di-redeem 1x, validasi quantity dan cek apakah tim/pendaftaran sudah pernah redeem sebelumnya
   if (product.is_single_redeem) {
     if (qty > 1) {
       throw new Error("Produk ini hanya dapat di-redeem 1 kali per pengguna.");
@@ -174,7 +174,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       .from(schema.Redemption)
       .where(
         and(
-          eq(schema.Redemption.user_id, userId),
+          eq(schema.Redemption.registration_id, reg.registration_id),
           eq(schema.Redemption.product_id, productId)
         )
       )
@@ -266,7 +266,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       .insert(schema.Redemption)
       .values({
         redemption_id: redemptionId,
-        user_id: userId,
+        registration_id: reg.registration_id,
         product_id: productId,
         points_used: pointsNeeded,
         quantity: qty,
@@ -276,6 +276,15 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   });
 
   return {
+    registration_id: reg.registration_id,
+    redemption_id: redemptionId,
+    registration: {
+      registration_id: updatedRegistration.registration_id,
+      category_id: updatedRegistration.category_id,
+      team_name: updatedRegistration.team_name,
+      diamond: updatedRegistration.diamond,
+      xp: updatedRegistration.xp,
+    },
     user: {
       users_id: user.users_id,
       name: user.name,
@@ -294,24 +303,29 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     },
     quantity: qty,
     earned_xp: earnedXp,
-    redemption_id: redemptionId,
   };
 };
 
 // Get all redemption history (admin only)
 export const getAllRedeemUser = async (filters = {}) => {
-  const { page = 1, limit = 10, search, user_id, product_id, category_id } = filters;
+  const { page = 1, limit = 10, search, user_id, registration_id, product_id, category_id } = filters;
   const skip = (page - 1) * Number(limit);
 
   const conditions = [];
 
-  if (user_id) conditions.push(eq(schema.Redemption.user_id, user_id));
+  if (registration_id) conditions.push(eq(schema.Redemption.registration_id, registration_id));
+  if (user_id) conditions.push(eq(schema.Registration.user_id, user_id));
   if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
   if (category_id) {
     if (category_id.toLowerCase() === "global") {
       conditions.push(isNull(schema.product.category_id));
     } else if (category_id.toLowerCase() !== "all") {
-      conditions.push(eq(schema.product.category_id, category_id));
+      conditions.push(
+        or(
+          eq(schema.product.category_id, category_id),
+          eq(schema.Registration.category_id, category_id)
+        )
+      );
     }
   }
 
@@ -321,6 +335,7 @@ export const getAllRedeemUser = async (filters = {}) => {
         like(schema.User.name, `%${search}%`),
         like(schema.User.email, `%${search}%`),
         like(schema.User.whatsapp_number, `%${search}%`),
+        like(schema.Registration.team_name, `%${search}%`),
         like(schema.product.name, `%${search}%`)
       )
     );
@@ -332,6 +347,7 @@ export const getAllRedeemUser = async (filters = {}) => {
     db
       .select({
         Redemption: schema.Redemption,
+        Registration: schema.Registration,
         User: schema.User,
         product: schema.product,
         category: schema.Category,
@@ -339,7 +355,14 @@ export const getAllRedeemUser = async (filters = {}) => {
         updater: { name: updaterUser.name, email: updaterUser.email },
       })
       .from(schema.Redemption)
-      .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
+      .leftJoin(
+        schema.Registration,
+        eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
+      .leftJoin(
+        schema.User,
+        eq(schema.Registration.user_id, schema.User.users_id)
+      )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .leftJoin(creatorUser, eq(schema.Redemption.created_by, creatorUser.users_id))
@@ -351,7 +374,14 @@ export const getAllRedeemUser = async (filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Redemption)
-      .leftJoin(schema.User, eq(schema.Redemption.user_id, schema.User.users_id))
+      .leftJoin(
+        schema.Registration,
+        eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
+      .leftJoin(
+        schema.User,
+        eq(schema.Registration.user_id, schema.User.users_id)
+      )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .where(whereClause),
@@ -359,6 +389,16 @@ export const getAllRedeemUser = async (filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    user_id: row.Registration?.user_id || row.User?.users_id || null,
+    registration: row.Registration
+      ? {
+          registration_id: row.Registration.registration_id,
+          user_id: row.Registration.user_id,
+          category_id: row.Registration.category_id,
+          team_name: row.Registration.team_name,
+          team_members: row.Registration.team_members,
+        }
+      : null,
     user: row.User
       ? {
           users_id: row.User.users_id,
@@ -415,15 +455,17 @@ export const getAllRedeemUser = async (filters = {}) => {
 
 // Get user's own redemption history
 export const getMyRedeem = async (userId, filters = {}) => {
-  const { page = 1, limit = 10, search, product_id, category_id } = filters;
+  const { page = 1, limit = 10, search, product_id, category_id, registration_id } = filters;
   const skip = (page - 1) * Number(limit);
 
-  const conditions = [eq(schema.Redemption.user_id, userId)];
+  const conditions = [eq(schema.Registration.user_id, userId)];
+  if (registration_id) conditions.push(eq(schema.Redemption.registration_id, registration_id));
   if (product_id) conditions.push(eq(schema.Redemption.product_id, product_id));
   if (category_id) {
     conditions.push(
       or(
         eq(schema.product.category_id, category_id),
+        eq(schema.Registration.category_id, category_id),
         isNull(schema.product.category_id)
       )
     );
@@ -439,10 +481,15 @@ export const getMyRedeem = async (userId, filters = {}) => {
     db
       .select({
         Redemption: schema.Redemption,
+        Registration: schema.Registration,
         product: schema.product,
         category: schema.Category,
       })
       .from(schema.Redemption)
+      .innerJoin(
+        schema.Registration,
+        eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .where(whereClause)
@@ -452,12 +499,24 @@ export const getMyRedeem = async (userId, filters = {}) => {
     db
       .select({ count: sql`count(*)` })
       .from(schema.Redemption)
+      .innerJoin(
+        schema.Registration,
+        eq(schema.Redemption.registration_id, schema.Registration.registration_id)
+      )
       .leftJoin(schema.product, eq(schema.Redemption.product_id, schema.product.product_id))
       .where(whereClause),
   ]);
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    user_id: row.Registration?.user_id || userId,
+    registration: row.Registration
+      ? {
+          registration_id: row.Registration.registration_id,
+          category_id: row.Registration.category_id,
+          team_name: row.Registration.team_name,
+        }
+      : null,
     product: row.product
       ? {
           product_id: row.product.product_id,
