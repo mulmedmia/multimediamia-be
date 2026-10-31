@@ -175,7 +175,12 @@ export const createProduct = async (productData, userId = null) => {
           ? Number(productData.reward_xp)
           : 0,
       is_unlimited_stock: productData.is_unlimited_stock !== undefined ? Boolean(productData.is_unlimited_stock) : false,
-      is_single_redeem: productData.is_single_redeem !== undefined ? Boolean(productData.is_single_redeem) : false,
+      max_redeem_per_team:
+        productData.max_redeem_per_team !== undefined
+          ? Math.max(0, parseInt(productData.max_redeem_per_team, 10) || 0)
+          : productData.is_single_redeem
+          ? 1
+          : 0,
       is_active: productData.is_active !== undefined ? productData.is_active : true,
       created_by: userId || null,
       updated_by: userId || null,
@@ -225,7 +230,12 @@ export const updateProduct = async (id, productData, userId = null) => {
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);
   if (updateFields.is_unlimited_stock !== undefined) updateFields.is_unlimited_stock = Boolean(updateFields.is_unlimited_stock);
-  if (updateFields.is_single_redeem !== undefined) updateFields.is_single_redeem = Boolean(updateFields.is_single_redeem);
+  if (updateFields.max_redeem_per_team !== undefined) {
+    updateFields.max_redeem_per_team = Math.max(0, parseInt(updateFields.max_redeem_per_team, 10) || 0);
+  } else if (updateFields.is_single_redeem !== undefined) {
+    updateFields.max_redeem_per_team = updateFields.is_single_redeem ? 1 : 0;
+  }
+  delete updateFields.is_single_redeem;
 
   const [updatedProduct] = await db
     .update(schema.product)

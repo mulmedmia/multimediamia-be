@@ -62,6 +62,11 @@ describe("Redemption Registration Linking Suite", () => {
       true,
       "product must have price_xp"
     );
+    assert.equal(
+      productColumns.includes("max_redeem_per_team"),
+      true,
+      "product must have max_redeem_per_team"
+    );
   });
 
   test("2. Service functions should be properly defined and exported", () => {

@@ -181,25 +181,35 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   const currentRegistration = reg.registration;
   const currentCategory = reg.category;
 
-  // Jika produk hanya bisa di-redeem 1x, validasi quantity dan cek apakah tim/pendaftaran sudah pernah redeem sebelumnya
-  if (product.is_single_redeem) {
-    if (qty > 1) {
-      throw new Error("Produk ini hanya dapat di-redeem 1 kali per pengguna.");
+  // Validasi batas maksimal penukaran per tim (max_redeem_per_team)
+  const maxPerTeam = Number(product.max_redeem_per_team) || 0;
+  if (maxPerTeam > 0) {
+    if (qty > maxPerTeam) {
+      throw new Error(`Kuantitas melebihi batas maksimal penukaran (${maxPerTeam} item per tim).`);
     }
 
-    const [existingRedemption] = await db
-      .select({ redemption_id: schema.Redemption.redemption_id })
+    const [redeemedResult] = await db
+      .select({
+        totalQuantity: sql`COALESCE(SUM(${schema.Redemption.quantity}), 0)`.as("totalQuantity"),
+      })
       .from(schema.Redemption)
       .where(
         and(
           eq(schema.Redemption.registration_id, currentRegistration.registration_id),
           eq(schema.Redemption.product_id, productId)
         )
-      )
-      .limit(1);
+      );
 
-    if (existingRedemption) {
-      throw new Error("Produk ini hanya dapat di-redeem 1 kali per pengguna.");
+    const alreadyRedeemed = Number(redeemedResult?.totalQuantity || 0);
+    if (alreadyRedeemed >= maxPerTeam) {
+      throw new Error(`Produk ini telah mencapai batas maksimal penukaran (${maxPerTeam} item per tim).`);
+    }
+
+    if (alreadyRedeemed + qty > maxPerTeam) {
+      const remainingQuota = maxPerTeam - alreadyRedeemed;
+      throw new Error(
+        `Anda hanya dapat menukar ${remainingQuota} item lagi untuk produk ini (maksimal ${maxPerTeam} item per tim).`
+      );
     }
   }
 
@@ -304,7 +314,26 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     }
     updatedRegistration = u;
 
-    // 3. Catat riwayat penukaran hadiah beserta points_used, xp_used, dan quantity
+    // 3. Validasi batas kuota tim di dalam transaksi untuk mencegah race condition
+    if (maxPerTeam > 0) {
+      const [txRedeemed] = await tx
+        .select({
+          totalQuantity: sql`COALESCE(SUM(${schema.Redemption.quantity}), 0)`.as("totalQuantity"),
+        })
+        .from(schema.Redemption)
+        .where(
+          and(
+            eq(schema.Redemption.registration_id, currentRegistration.registration_id),
+            eq(schema.Redemption.product_id, productId)
+          )
+        );
+      const currentAlreadyRedeemed = Number(txRedeemed?.totalQuantity || 0);
+      if (currentAlreadyRedeemed + qty > maxPerTeam) {
+        throw new Error(`Batas maksimal penukaran produk (${maxPerTeam} item per tim) terlampaui.`);
+      }
+    }
+
+    // 4. Catat riwayat penukaran hadiah beserta points_used, xp_used, dan quantity
     await tx
       .insert(schema.Redemption)
       .values({
@@ -348,7 +377,8 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       stock: updatedProduct.stock,
       reward_xp: updatedProduct.reward_xp,
       is_unlimited_stock: updatedProduct.is_unlimited_stock,
-      is_single_redeem: updatedProduct.is_single_redeem,
+      max_redeem_per_team: updatedProduct.max_redeem_per_team,
+      is_single_redeem: Number(updatedProduct.max_redeem_per_team) === 1,
     },
     quantity: qty,
     earned_xp: earnedXp,
@@ -493,7 +523,8 @@ export const getAllRedeemUser = async (filters = {}) => {
           price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
-          is_single_redeem: row.product.is_single_redeem,
+          max_redeem_per_team: row.product.max_redeem_per_team,
+          is_single_redeem: Number(row.product.max_redeem_per_team) === 1,
           reward_xp: row.product.reward_xp,
         }
       : null,
@@ -606,7 +637,8 @@ export const getMyRedeem = async (userId, filters = {}) => {
           price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
-          is_single_redeem: row.product.is_single_redeem,
+          max_redeem_per_team: row.product.max_redeem_per_team,
+          is_single_redeem: Number(row.product.max_redeem_per_team) === 1,
           reward_xp: row.product.reward_xp,
         }
       : null,

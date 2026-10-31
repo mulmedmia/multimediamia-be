@@ -455,6 +455,18 @@ describe("Validation Schemas Suite", () => {
         )
       );
     });
+
+    test("createProductSchema should support max_redeem_per_team", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Merchandise Eksklusif",
+        description: "Merchandise eksklusif dengan limit 3 per tim",
+        price_diamond: 50,
+        price_xp: 0,
+        max_redeem_per_team: "3",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.max_redeem_per_team, 3);
+    });
   });
 });
 

@@ -22,7 +22,12 @@ export const createProductSchema = z
       .default(0),
     is_active: z.boolean().default(true),
     is_unlimited_stock: z.boolean().default(false),
-    is_single_redeem: z.boolean().default(false),
+    max_redeem_per_team: z.coerce
+      .number({ invalid_type_error: "Max redeem per team must be a number" })
+      .int("Max redeem per team must be an integer")
+      .min(0, "Max redeem per team must be a non-negative integer")
+      .default(0),
+    is_single_redeem: z.boolean().optional(),
     reward_xp: z.coerce
       .number({ invalid_type_error: "Reward XP must be a number" })
       .int("Reward XP must be an integer")
@@ -81,6 +86,11 @@ export const updateProductSchema = z
       .optional(),
     is_active: z.boolean().optional(),
     is_unlimited_stock: z.boolean().optional(),
+    max_redeem_per_team: z.coerce
+      .number({ invalid_type_error: "Max redeem per team must be a number" })
+      .int("Max redeem per team must be an integer")
+      .min(0, "Max redeem per team must be a non-negative integer")
+      .optional(),
     is_single_redeem: z.boolean().optional(),
     reward_xp: z.coerce
       .number({ invalid_type_error: "Reward XP must be a number" })
