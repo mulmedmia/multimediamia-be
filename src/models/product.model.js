@@ -11,36 +11,39 @@ export const createProductSchema = z
       .transform((val) => (!val || val === "ALL" || val === "all" ? null : val)),
     name: z.string().min(1, "Product name is required"),
     description: z.string().min(10, "Description must be at least 10 characters"),
-    price: z.number().min(0, "Price must be a non-negative number").default(0),
-    price_xp: z
-      .number()
-      .int()
+    price_diamond: z.coerce
+      .number({ invalid_type_error: "Price Diamond must be a number" })
+      .min(0, "Price Diamond must be a non-negative number")
+      .default(0),
+    price_xp: z.coerce
+      .number({ invalid_type_error: "Price XP must be a number" })
+      .int("Price XP must be an integer")
       .min(0, "Price XP must be a non-negative integer")
       .default(0),
     is_active: z.boolean().default(true),
     is_unlimited_stock: z.boolean().default(false),
     is_single_redeem: z.boolean().default(false),
-    reward_xp: z
-      .number()
-      .int()
+    reward_xp: z.coerce
+      .number({ invalid_type_error: "Reward XP must be a number" })
+      .int("Reward XP must be an integer")
       .min(0, "Reward XP must be a non-negative integer")
       .default(0),
-    stock: z
-      .number()
-      .int()
+    stock: z.coerce
+      .number({ invalid_type_error: "Stock must be a number" })
+      .int("Stock must be an integer")
       .min(0, "Stock must be a non-negative integer")
       .default(0),
   })
   .superRefine((data, ctx) => {
-    const price = Number(data.price || 0);
+    const priceDiamond = Number(data.price_diamond || 0);
     const priceXp = Number(data.price_xp || 0);
     const rewardXp = Number(data.reward_xp || 0);
 
-    if (price <= 0 && priceXp <= 0) {
+    if (priceDiamond <= 0 && priceXp <= 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Minimal salah satu harga (Diamond atau XP) harus lebih dari 0",
-        path: ["price"],
+        path: ["price_diamond"],
       });
     }
 
@@ -67,23 +70,26 @@ export const updateProductSchema = z
       .string()
       .min(10, "Description must be at least 10 characters")
       .optional(),
-    price: z.number().min(0, "Price must be a non-negative number").optional(),
-    price_xp: z
-      .number()
-      .int()
+    price_diamond: z.coerce
+      .number({ invalid_type_error: "Price Diamond must be a number" })
+      .min(0, "Price Diamond must be a non-negative number")
+      .optional(),
+    price_xp: z.coerce
+      .number({ invalid_type_error: "Price XP must be a number" })
+      .int("Price XP must be an integer")
       .min(0, "Price XP must be a non-negative integer")
       .optional(),
     is_active: z.boolean().optional(),
     is_unlimited_stock: z.boolean().optional(),
     is_single_redeem: z.boolean().optional(),
-    reward_xp: z
-      .number()
-      .int()
+    reward_xp: z.coerce
+      .number({ invalid_type_error: "Reward XP must be a number" })
+      .int("Reward XP must be an integer")
       .min(0, "Reward XP must be a non-negative integer")
       .optional(),
-    stock: z
-      .number()
-      .int()
+    stock: z.coerce
+      .number({ invalid_type_error: "Stock must be a number" })
+      .int("Stock must be an integer")
       .min(0, "Stock must be a non-negative integer")
       .optional(),
   })

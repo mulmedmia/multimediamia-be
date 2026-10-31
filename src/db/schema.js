@@ -177,7 +177,7 @@ export const product = pgTable("product", {
   category_id: text("category_id").references(() => Category.category_id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  price: doublePrecision("price").notNull(),
+  price_diamond: doublePrecision("price_diamond").notNull(),
   price_xp: integer("price_xp").default(0).notNull(),
   image_url: text("image_url").notNull(),
   stock: integer("stock").default(0).notNull(),

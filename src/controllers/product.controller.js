@@ -109,12 +109,13 @@ export const createNewProduct = async (req, res) => {
       productData = formData;
     }
 
-    // Convert price to number
-    if (productData.price !== undefined && productData.price !== "") {
-      productData.price = Number(productData.price);
+    // Convert price_diamond to number
+    if (productData.price_diamond !== undefined && productData.price_diamond !== "") {
+      productData.price_diamond = Number(productData.price_diamond);
     } else {
-      productData.price = 0;
+      productData.price_diamond = 0;
     }
+    delete productData.price;
 
     // Convert price_xp to number
     if (productData.price_xp !== undefined && productData.price_xp !== "") {
@@ -203,10 +204,11 @@ export const updateExistingProduct = async (req, res) => {
       productData = formData;
     }
 
-    // Convert price to number if provided
-    if (productData.price !== undefined && productData.price !== "") {
-      productData.price = Number(productData.price);
+    // Convert price_diamond to number if provided
+    if (productData.price_diamond !== undefined && productData.price_diamond !== "") {
+      productData.price_diamond = Number(productData.price_diamond);
     }
+    delete productData.price;
 
     // Convert price_xp to number if provided
     if (productData.price_xp !== undefined && productData.price_xp !== "") {

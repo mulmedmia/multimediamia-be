@@ -203,7 +203,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     }
   }
 
-  const pointsNeeded = (Number(product.price) || 0) * qty;
+  const pointsNeeded = (Number(product.price_diamond) || 0) * qty;
   const xpNeeded = (Number(product.price_xp) || 0) * qty;
   // Jika produk memiliki harga XP, produk tidak dapat dikonversi ke XP (reward_xp = 0)
   const earnedXp = Number(product.price_xp) > 0 ? 0 : (Number(product.reward_xp) || 0) * qty;
@@ -343,7 +343,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     product: {
       product_id: updatedProduct.product_id,
       name: updatedProduct.name,
-      price: updatedProduct.price,
+      price_diamond: updatedProduct.price_diamond,
       price_xp: updatedProduct.price_xp,
       stock: updatedProduct.stock,
       reward_xp: updatedProduct.reward_xp,
@@ -489,7 +489,7 @@ export const getAllRedeemUser = async (filters = {}) => {
                 slug: row.category.slug,
               }
             : null,
-          price: row.product.price,
+          price_diamond: row.product.price_diamond,
           price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
@@ -602,7 +602,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
               }
             : null,
           name: row.product.name,
-          price: row.product.price,
+          price_diamond: row.product.price_diamond,
           price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,

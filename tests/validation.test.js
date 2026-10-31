@@ -371,29 +371,44 @@ describe("Validation Schemas Suite", () => {
   });
 
   describe("Product Validation", () => {
-    test("createProductSchema should accept product with only Diamond price", () => {
+    test("createProductSchema should accept product with only Diamond price (price_diamond)", () => {
       const valid = createProductSchema.safeParse({
         name: "Stiker Keren",
         description: "Stiker eksklusif merchandise lomba MIA 2026",
-        price: 50,
+        price_diamond: 50,
         price_xp: 0,
         reward_xp: 0,
       });
       assert.equal(valid.success, true);
-      assert.equal(valid.data.price, 50);
+      assert.equal(valid.data.price_diamond, 50);
       assert.equal(valid.data.price_xp, 0);
+    });
+
+    test("createProductSchema should coerce string numbers from multipart form-data", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Stiker Keren Form-Data",
+        description: "Stiker eksklusif merchandise lomba MIA 2026",
+        price_diamond: "75",
+        price_xp: "10",
+        stock: "5",
+        reward_xp: "0",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price_diamond, 75);
+      assert.equal(valid.data.price_xp, 10);
+      assert.equal(valid.data.stock, 5);
     });
 
     test("createProductSchema should accept product with only XP price", () => {
       const valid = createProductSchema.safeParse({
         name: "Badge XP Spesial",
         description: "Badge penghargaan peserta lomba dengan poin XP",
-        price: 0,
+        price_diamond: 0,
         price_xp: 150,
         reward_xp: 0,
       });
       assert.equal(valid.success, true);
-      assert.equal(valid.data.price, 0);
+      assert.equal(valid.data.price_diamond, 0);
       assert.equal(valid.data.price_xp, 150);
     });
 
@@ -401,7 +416,7 @@ describe("Validation Schemas Suite", () => {
       const invalid = createProductSchema.safeParse({
         name: "Produk Gratisan",
         description: "Deskripsi barang gratisan tanpa harga sama sekali",
-        price: 0,
+        price_diamond: 0,
         price_xp: 0,
       });
       assert.equal(invalid.success, false);
@@ -416,7 +431,7 @@ describe("Validation Schemas Suite", () => {
       const invalid = createProductSchema.safeParse({
         name: "Produk Kontradiktif",
         description: "Beli pakai XP tapi dapat reward XP juga (tidak diizinkan)",
-        price: 10,
+        price_diamond: 10,
         price_xp: 100,
         reward_xp: 50,
       });

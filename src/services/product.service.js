@@ -51,11 +51,11 @@ export const getAllProducts = async (filters = {}) => {
   }
 
   if (min_price) {
-    conditions.push(gte(schema.product.price, Number(min_price)));
+    conditions.push(gte(schema.product.price_diamond, Number(min_price)));
   }
 
   if (max_price) {
-    conditions.push(lte(schema.product.price, Number(max_price)));
+    conditions.push(lte(schema.product.price_diamond, Number(max_price)));
   }
 
   if (is_active !== undefined) {
@@ -164,7 +164,7 @@ export const createProduct = async (productData, userId = null) => {
           : productData.category_id,
       name: productData.name,
       description: productData.description,
-      price: productData.price !== undefined ? Number(productData.price) : 0,
+      price_diamond: Number(productData.price_diamond || 0),
       price_xp: productData.price_xp !== undefined ? Number(productData.price_xp) : 0,
       image_url: productData.image_url,
       stock: productData.stock !== undefined ? Number(productData.stock) : 0,
@@ -210,7 +210,10 @@ export const updateProduct = async (id, productData, userId = null) => {
         ? null
         : updateFields.category_id;
   }
-  if (updateFields.price !== undefined) updateFields.price = Number(updateFields.price);
+  if (updateFields.price_diamond !== undefined) {
+    updateFields.price_diamond = Number(updateFields.price_diamond);
+  }
+  delete updateFields.price;
   if (updateFields.price_xp !== undefined) {
     updateFields.price_xp = Number(updateFields.price_xp);
     if (updateFields.price_xp > 0) {

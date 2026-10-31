@@ -53,6 +53,11 @@ describe("Redemption Registration Linking Suite", () => {
 
     const productColumns = Object.keys(schema.product);
     assert.equal(
+      productColumns.includes("price_diamond"),
+      true,
+      "product must have price_diamond"
+    );
+    assert.equal(
       productColumns.includes("price_xp"),
       true,
       "product must have price_xp"
