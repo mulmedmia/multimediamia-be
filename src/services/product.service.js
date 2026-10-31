@@ -164,10 +164,16 @@ export const createProduct = async (productData, userId = null) => {
           : productData.category_id,
       name: productData.name,
       description: productData.description,
-      price: Number(productData.price),
+      price: productData.price !== undefined ? Number(productData.price) : 0,
+      price_xp: productData.price_xp !== undefined ? Number(productData.price_xp) : 0,
       image_url: productData.image_url,
       stock: productData.stock !== undefined ? Number(productData.stock) : 0,
-      reward_xp: productData.reward_xp !== undefined ? Number(productData.reward_xp) : 0,
+      reward_xp:
+        Number(productData.price_xp) > 0
+          ? 0
+          : productData.reward_xp !== undefined
+          ? Number(productData.reward_xp)
+          : 0,
       is_unlimited_stock: productData.is_unlimited_stock !== undefined ? Boolean(productData.is_unlimited_stock) : false,
       is_single_redeem: productData.is_single_redeem !== undefined ? Boolean(productData.is_single_redeem) : false,
       is_active: productData.is_active !== undefined ? productData.is_active : true,
@@ -205,6 +211,14 @@ export const updateProduct = async (id, productData, userId = null) => {
         : updateFields.category_id;
   }
   if (updateFields.price !== undefined) updateFields.price = Number(updateFields.price);
+  if (updateFields.price_xp !== undefined) {
+    updateFields.price_xp = Number(updateFields.price_xp);
+    if (updateFields.price_xp > 0) {
+      updateFields.reward_xp = 0;
+    }
+  } else if (Number(existing.price_xp) > 0 && updateFields.reward_xp !== undefined && Number(updateFields.reward_xp) > 0) {
+    throw new Error("Produk dengan harga XP tidak dapat memiliki reward XP.");
+  }
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);
   if (updateFields.is_unlimited_stock !== undefined) updateFields.is_unlimited_stock = Boolean(updateFields.is_unlimited_stock);

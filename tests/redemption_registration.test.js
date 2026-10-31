@@ -41,9 +41,21 @@ describe("Redemption Registration Linking Suite", () => {
       "Redemption must have points_used"
     );
     assert.equal(
+      redemptionColumns.includes("xp_used"),
+      true,
+      "Redemption must have xp_used"
+    );
+    assert.equal(
       redemptionColumns.includes("quantity"),
       true,
       "Redemption must have quantity"
+    );
+
+    const productColumns = Object.keys(schema.product);
+    assert.equal(
+      productColumns.includes("price_xp"),
+      true,
+      "product must have price_xp"
     );
   });
 

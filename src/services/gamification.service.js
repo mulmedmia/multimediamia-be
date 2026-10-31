@@ -203,14 +203,24 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     }
   }
 
-  const pointsNeeded = product.price * qty;
-  const earnedXp = (Number(product.reward_xp) || 0) * qty;
+  const pointsNeeded = (Number(product.price) || 0) * qty;
+  const xpNeeded = (Number(product.price_xp) || 0) * qty;
+  // Jika produk memiliki harga XP, produk tidak dapat dikonversi ke XP (reward_xp = 0)
+  const earnedXp = Number(product.price_xp) > 0 ? 0 : (Number(product.reward_xp) || 0) * qty;
   const redemptionId = generateCuid();
+
+  // Validasi saldo diamond dan XP sebelum memulai transaksi
+  if (pointsNeeded > 0 && currentRegistration.diamond < pointsNeeded) {
+    throw new Error("Insufficient points");
+  }
+  if (xpNeeded > 0 && currentRegistration.xp < xpNeeded) {
+    throw new Error("Insufficient XP");
+  }
 
   let updatedRegistration;
   let updatedProduct;
 
-  // Kurangi diamond tim (dan tambah XP jika reward_xp > 0) serta kurangi stok produk di dalam transaksi
+  // Kurangi diamond & XP tim (dan tambah XP jika reward_xp > 0 & harga XP = 0) serta kurangi stok produk di dalam transaksi
   await db.transaction(async (tx) => {
     // 1. Update stok produk: Jika TIDAK unlimited, HANYA kurangi jika stok saat ini masih >= qty dan produk masih aktif
     if (!product.is_unlimited_stock) {
@@ -253,33 +263,48 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       updatedProduct = p;
     }
 
-    // 2. Update diamond tim (dan tambah XP jika produk memiliki reward_xp): HANYA kurangi jika diamond saat ini masih mencukupi
+    // 2. Update diamond & XP tim: HANYA kurangi jika diamond dan/atau XP saat ini masih mencukupi
     const regUpdateFields = {
-      diamond: sql`${schema.Registration.diamond} - ${pointsNeeded}`,
       updated_by: userId,
       updated_at: new Date(),
     };
-    if (earnedXp > 0) {
+    if (pointsNeeded > 0) {
+      regUpdateFields.diamond = sql`${schema.Registration.diamond} - ${pointsNeeded}`;
+    }
+    if (xpNeeded > 0) {
+      regUpdateFields.xp = sql`${schema.Registration.xp} - ${xpNeeded}`;
+    } else if (earnedXp > 0) {
       regUpdateFields.xp = sql`${schema.Registration.xp} + ${earnedXp}`;
+    }
+
+    const regConditions = [
+      eq(schema.Registration.registration_id, currentRegistration.registration_id),
+    ];
+    if (pointsNeeded > 0) {
+      regConditions.push(gte(schema.Registration.diamond, pointsNeeded));
+    }
+    if (xpNeeded > 0) {
+      regConditions.push(gte(schema.Registration.xp, xpNeeded));
     }
 
     const [u] = await tx
       .update(schema.Registration)
       .set(regUpdateFields)
-      .where(
-        and(
-          eq(schema.Registration.registration_id, currentRegistration.registration_id),
-          gte(schema.Registration.diamond, pointsNeeded)
-        )
-      )
+      .where(and(...regConditions))
       .returning();
 
     if (!u) {
-      throw new Error("Insufficient points");
+      throw new Error(
+        pointsNeeded > 0 && xpNeeded > 0
+          ? "Insufficient points or XP"
+          : xpNeeded > 0
+          ? "Insufficient XP"
+          : "Insufficient points"
+      );
     }
     updatedRegistration = u;
 
-    // 3. Catat riwayat penukaran hadiah beserta quantity
+    // 3. Catat riwayat penukaran hadiah beserta points_used, xp_used, dan quantity
     await tx
       .insert(schema.Redemption)
       .values({
@@ -287,6 +312,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
         registration_id: currentRegistration.registration_id,
         product_id: productId,
         points_used: pointsNeeded,
+        xp_used: xpNeeded,
         quantity: qty,
         created_by: userId,
         updated_by: userId,
@@ -296,6 +322,8 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   return {
     registration_id: currentRegistration.registration_id,
     redemption_id: redemptionId,
+    points_used: pointsNeeded,
+    xp_used: xpNeeded,
     registration: {
       registration_id: updatedRegistration.registration_id,
       category_id: updatedRegistration.category_id,
@@ -315,6 +343,8 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     product: {
       product_id: updatedProduct.product_id,
       name: updatedProduct.name,
+      price: updatedProduct.price,
+      price_xp: updatedProduct.price_xp,
       stock: updatedProduct.stock,
       reward_xp: updatedProduct.reward_xp,
       is_unlimited_stock: updatedProduct.is_unlimited_stock,
@@ -460,6 +490,7 @@ export const getAllRedeemUser = async (filters = {}) => {
               }
             : null,
           price: row.product.price,
+          price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
           is_single_redeem: row.product.is_single_redeem,
@@ -572,6 +603,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
             : null,
           name: row.product.name,
           price: row.product.price,
+          price_xp: row.product.price_xp,
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
           is_single_redeem: row.product.is_single_redeem,

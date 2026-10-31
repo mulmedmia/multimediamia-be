@@ -112,6 +112,15 @@ export const createNewProduct = async (req, res) => {
     // Convert price to number
     if (productData.price !== undefined && productData.price !== "") {
       productData.price = Number(productData.price);
+    } else {
+      productData.price = 0;
+    }
+
+    // Convert price_xp to number
+    if (productData.price_xp !== undefined && productData.price_xp !== "") {
+      productData.price_xp = Number(productData.price_xp);
+    } else {
+      productData.price_xp = 0;
     }
 
     // Convert is_active to boolean
@@ -132,8 +141,10 @@ export const createNewProduct = async (req, res) => {
         productData.is_single_redeem === "true" || productData.is_single_redeem === true;
     }
 
-    // Convert reward_xp to number
-    if (productData.reward_xp !== undefined && productData.reward_xp !== "") {
+    // Convert reward_xp to number (if price_xp > 0, cannot convert to XP)
+    if (productData.price_xp > 0) {
+      productData.reward_xp = 0;
+    } else if (productData.reward_xp !== undefined && productData.reward_xp !== "") {
       productData.reward_xp = Number(productData.reward_xp);
     } else {
       productData.reward_xp = 0;
@@ -195,6 +206,14 @@ export const updateExistingProduct = async (req, res) => {
     // Convert price to number if provided
     if (productData.price !== undefined && productData.price !== "") {
       productData.price = Number(productData.price);
+    }
+
+    // Convert price_xp to number if provided
+    if (productData.price_xp !== undefined && productData.price_xp !== "") {
+      productData.price_xp = Number(productData.price_xp);
+      if (productData.price_xp > 0) {
+        productData.reward_xp = 0;
+      }
     }
 
     // Convert is_active to boolean if provided

@@ -21,6 +21,10 @@ import {
   submitMissionSchema,
   reviewMissionSubmissionSchema,
 } from "../src/models/mission.model.js";
+import {
+  createProductSchema,
+  updateProductSchema,
+} from "../src/models/product.model.js";
 
 describe("Validation Schemas Suite", () => {
   describe("Auth Validation", () => {
@@ -363,6 +367,78 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(valid.success, true);
       assert.equal(valid.data.registration_id, "reg_uiux_123");
+    });
+  });
+
+  describe("Product Validation", () => {
+    test("createProductSchema should accept product with only Diamond price", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Stiker Keren",
+        description: "Stiker eksklusif merchandise lomba MIA 2026",
+        price: 50,
+        price_xp: 0,
+        reward_xp: 0,
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price, 50);
+      assert.equal(valid.data.price_xp, 0);
+    });
+
+    test("createProductSchema should accept product with only XP price", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Badge XP Spesial",
+        description: "Badge penghargaan peserta lomba dengan poin XP",
+        price: 0,
+        price_xp: 150,
+        reward_xp: 0,
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price, 0);
+      assert.equal(valid.data.price_xp, 150);
+    });
+
+    test("createProductSchema should reject product if both Diamond price and XP price are 0", () => {
+      const invalid = createProductSchema.safeParse({
+        name: "Produk Gratisan",
+        description: "Deskripsi barang gratisan tanpa harga sama sekali",
+        price: 0,
+        price_xp: 0,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("Minimal salah satu harga")
+        )
+      );
+    });
+
+    test("createProductSchema should reject product with XP price having reward XP (gabisa konversi ke XP)", () => {
+      const invalid = createProductSchema.safeParse({
+        name: "Produk Kontradiktif",
+        description: "Beli pakai XP tapi dapat reward XP juga (tidak diizinkan)",
+        price: 10,
+        price_xp: 100,
+        reward_xp: 50,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("tidak dapat dikonversi ke XP")
+        )
+      );
+    });
+
+    test("updateProductSchema should reject price_xp > 0 with reward_xp > 0", () => {
+      const invalid = updateProductSchema.safeParse({
+        price_xp: 200,
+        reward_xp: 20,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("tidak dapat dikonversi ke XP")
+        )
+      );
     });
   });
 });

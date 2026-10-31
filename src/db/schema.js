@@ -178,6 +178,7 @@ export const product = pgTable("product", {
   name: text("name").notNull(),
   description: text("description").notNull(),
   price: doublePrecision("price").notNull(),
+  price_xp: integer("price_xp").default(0).notNull(),
   image_url: text("image_url").notNull(),
   stock: integer("stock").default(0).notNull(),
   reward_xp: integer("reward_xp").default(0).notNull(),
@@ -202,6 +203,7 @@ export const Redemption = pgTable(
       .notNull()
       .references(() => product.product_id),
     points_used: integer("points_used").notNull(),
+    xp_used: integer("xp_used").default(0).notNull(),
     quantity: integer("quantity").default(1).notNull(),
     created_by: text("created_by"),
     updated_by: text("updated_by"),
