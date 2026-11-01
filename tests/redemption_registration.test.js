@@ -36,9 +36,9 @@ describe("Redemption Registration Linking Suite", () => {
       "Redemption must have product_id"
     );
     assert.equal(
-      redemptionColumns.includes("points_used"),
+      redemptionColumns.includes("diamond_used"),
       true,
-      "Redemption must have points_used"
+      "Redemption must have diamond_used"
     );
     assert.equal(
       redemptionColumns.includes("xp_used"),

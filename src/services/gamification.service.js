@@ -333,14 +333,14 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       }
     }
 
-    // 4. Catat riwayat penukaran hadiah beserta points_used, xp_used, dan quantity
+    // 4. Catat riwayat penukaran hadiah beserta diamond_used, xp_used, dan quantity
     await tx
       .insert(schema.Redemption)
       .values({
         redemption_id: redemptionId,
         registration_id: currentRegistration.registration_id,
         product_id: productId,
-        points_used: pointsNeeded,
+        diamond_used: pointsNeeded,
         xp_used: xpNeeded,
         quantity: qty,
         created_by: userId,
@@ -351,6 +351,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   return {
     registration_id: currentRegistration.registration_id,
     redemption_id: redemptionId,
+    diamond_used: pointsNeeded,
     points_used: pointsNeeded,
     xp_used: xpNeeded,
     registration: {
@@ -387,8 +388,10 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
 
 // Get all redemption history (admin only)
 export const getAllRedeemUser = async (filters = {}) => {
-  const { page = 1, limit = 10, search, user_id, registration_id, product_id, category_id } = filters;
-  const skip = (page - 1) * Number(limit);
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.max(1, parseInt(filters.limit, 10) || 10);
+  const skip = (safePage - 1) * safeLimit;
+  const { search, user_id, registration_id, product_id, category_id } = filters;
 
   const conditions = [];
 
@@ -453,7 +456,7 @@ export const getAllRedeemUser = async (filters = {}) => {
       .leftJoin(updaterUser, eq(schema.Redemption.updated_by, updaterUser.users_id))
       .where(whereClause)
       .orderBy(desc(schema.Redemption.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
@@ -477,6 +480,8 @@ export const getAllRedeemUser = async (filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    diamond_used: row.Redemption.diamond_used,
+    points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || row.User?.users_id || null,
     registration: row.Registration
       ? {
@@ -538,17 +543,19 @@ export const getAllRedeemUser = async (filters = {}) => {
     redemptions,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     },
   };
 };
 
 // Get user's own redemption history
 export const getMyRedeem = async (userId, filters = {}) => {
-  const { page = 1, limit = 10, search, product_id, category_id, registration_id } = filters;
-  const skip = (page - 1) * Number(limit);
+  const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
+  const safeLimit = Math.max(1, parseInt(filters.limit, 10) || 10);
+  const skip = (safePage - 1) * safeLimit;
+  const { search, product_id, category_id, registration_id } = filters;
 
   const conditions = [eq(schema.Registration.user_id, userId)];
   if (registration_id) conditions.push(eq(schema.Redemption.registration_id, registration_id));
@@ -591,7 +598,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
       .leftJoin(schema.Category, eq(schema.product.category_id, schema.Category.category_id))
       .where(whereClause)
       .orderBy(desc(schema.Redemption.created_at))
-      .limit(Number(limit))
+      .limit(safeLimit)
       .offset(skip),
     db
       .select({ count: sql`count(*)` })
@@ -610,6 +617,8 @@ export const getMyRedeem = async (userId, filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    diamond_used: row.Redemption.diamond_used,
+    points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || userId,
     registration: row.Registration
       ? {
@@ -650,9 +659,9 @@ export const getMyRedeem = async (userId, filters = {}) => {
     redemptions,
     meta: {
       total,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(total / Number(limit)),
+      page: safePage,
+      limit: safeLimit,
+      totalPages: Math.max(1, Math.ceil(total / safeLimit)),
     },
   };
 };

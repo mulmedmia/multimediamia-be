@@ -202,7 +202,7 @@ export const Redemption = pgTable(
     product_id: text("product_id")
       .notNull()
       .references(() => product.product_id),
-    points_used: integer("points_used").notNull(),
+    diamond_used: integer("diamond_used").notNull(),
     xp_used: integer("xp_used").default(0).notNull(),
     quantity: integer("quantity").default(1).notNull(),
     created_by: text("created_by"),
