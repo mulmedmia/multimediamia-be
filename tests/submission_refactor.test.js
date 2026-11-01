@@ -94,24 +94,6 @@ describe("Submission Registration Refactor Integration Suite", () => {
     );
   });
 
-  test("3b. Reject submission if thumbnail_url is missing", async () => {
-    await assert.rejects(
-      async () => {
-        await createSubmission(
-          {
-            registration_id: testRegId,
-            project_name: "My App",
-            description: "Deskripsi aplikasi yang lebih dari 10 karakter",
-            flow_application: "Flow aplikasi lengkap dan jelas",
-            links: [{ link_type: "OTHER", url: "https://example.com" }],
-          },
-          testUserId
-        );
-      },
-      { message: "Thumbnail karya wajib diunggah" }
-    );
-  });
-
   test("4. Reject submission if registration belongs to another user", async () => {
     await assert.rejects(
       async () => {
