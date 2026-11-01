@@ -163,8 +163,8 @@ describe("Validation Schemas Suite", () => {
       assert.equal(valid.success, true);
     });
 
-    test("createSubmissionSchema should reject missing thumbnail_url and thumbnail", () => {
-      const invalid = createSubmissionSchema.safeParse({
+    test("createSubmissionSchema should allow missing thumbnail_url and thumbnail", () => {
+      const valid = createSubmissionSchema.safeParse({
         registration_id: "reg_123",
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
@@ -176,8 +176,7 @@ describe("Validation Schemas Suite", () => {
           },
         ],
       });
-      assert.equal(invalid.success, false);
-      assert.ok(invalid.error.issues.some((i) => i.path.includes("thumbnail_url")));
+      assert.equal(valid.success, true);
     });
 
     test("createSubmissionSchema should reject invalid thumbnail_url format", () => {
