@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, gte, lte, isNull } from "drizzle-orm";
+import { eq, or, like, and, sql, gte, lte, isNull, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -51,11 +51,11 @@ export const getAllProducts = async (filters = {}) => {
   }
 
   if (min_price) {
-    conditions.push(gte(schema.product.price, Number(min_price)));
+    conditions.push(gte(schema.product.price_diamond, Number(min_price)));
   }
 
   if (max_price) {
-    conditions.push(lte(schema.product.price, Number(max_price)));
+    conditions.push(lte(schema.product.price_diamond, Number(max_price)));
   }
 
   if (is_active !== undefined) {
@@ -77,7 +77,7 @@ export const getAllProducts = async (filters = {}) => {
       .leftJoin(creatorUser, eq(schema.product.created_by, creatorUser.users_id))
       .leftJoin(updaterUser, eq(schema.product.updated_by, updaterUser.users_id))
       .where(whereClause)
-      .orderBy(desc(schema.product.created_at))
+      .orderBy(asc(schema.product.name))
       .limit(Number(limit))
       .offset(skip),
     db
@@ -164,12 +164,23 @@ export const createProduct = async (productData, userId = null) => {
           : productData.category_id,
       name: productData.name,
       description: productData.description,
-      price: Number(productData.price),
+      price_diamond: Number(productData.price_diamond || 0),
+      price_xp: productData.price_xp !== undefined ? Number(productData.price_xp) : 0,
       image_url: productData.image_url,
       stock: productData.stock !== undefined ? Number(productData.stock) : 0,
-      reward_xp: productData.reward_xp !== undefined ? Number(productData.reward_xp) : 0,
+      reward_xp:
+        Number(productData.price_xp) > 0
+          ? 0
+          : productData.reward_xp !== undefined
+          ? Number(productData.reward_xp)
+          : 0,
       is_unlimited_stock: productData.is_unlimited_stock !== undefined ? Boolean(productData.is_unlimited_stock) : false,
-      is_single_redeem: productData.is_single_redeem !== undefined ? Boolean(productData.is_single_redeem) : false,
+      max_redeem_per_team:
+        productData.max_redeem_per_team !== undefined
+          ? Math.max(0, parseInt(productData.max_redeem_per_team, 10) || 0)
+          : productData.is_single_redeem
+          ? 1
+          : 0,
       is_active: productData.is_active !== undefined ? productData.is_active : true,
       created_by: userId || null,
       updated_by: userId || null,
@@ -204,11 +215,27 @@ export const updateProduct = async (id, productData, userId = null) => {
         ? null
         : updateFields.category_id;
   }
-  if (updateFields.price !== undefined) updateFields.price = Number(updateFields.price);
+  if (updateFields.price_diamond !== undefined) {
+    updateFields.price_diamond = Number(updateFields.price_diamond);
+  }
+  delete updateFields.price;
+  if (updateFields.price_xp !== undefined) {
+    updateFields.price_xp = Number(updateFields.price_xp);
+    if (updateFields.price_xp > 0) {
+      updateFields.reward_xp = 0;
+    }
+  } else if (Number(existing.price_xp) > 0 && updateFields.reward_xp !== undefined && Number(updateFields.reward_xp) > 0) {
+    throw new Error("Produk dengan harga XP tidak dapat memiliki reward XP.");
+  }
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);
   if (updateFields.is_unlimited_stock !== undefined) updateFields.is_unlimited_stock = Boolean(updateFields.is_unlimited_stock);
-  if (updateFields.is_single_redeem !== undefined) updateFields.is_single_redeem = Boolean(updateFields.is_single_redeem);
+  if (updateFields.max_redeem_per_team !== undefined) {
+    updateFields.max_redeem_per_team = Math.max(0, parseInt(updateFields.max_redeem_per_team, 10) || 0);
+  } else if (updateFields.is_single_redeem !== undefined) {
+    updateFields.max_redeem_per_team = updateFields.is_single_redeem ? 1 : 0;
+  }
+  delete updateFields.is_single_redeem;
 
   const [updatedProduct] = await db
     .update(schema.product)

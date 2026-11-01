@@ -21,6 +21,10 @@ import {
   submitMissionSchema,
   reviewMissionSubmissionSchema,
 } from "../src/models/mission.model.js";
+import {
+  createProductSchema,
+  updateProductSchema,
+} from "../src/models/product.model.js";
 
 describe("Validation Schemas Suite", () => {
   describe("Auth Validation", () => {
@@ -159,8 +163,8 @@ describe("Validation Schemas Suite", () => {
       assert.equal(valid.success, true);
     });
 
-    test("createSubmissionSchema should reject missing thumbnail_url and thumbnail", () => {
-      const invalid = createSubmissionSchema.safeParse({
+    test("createSubmissionSchema should allow missing thumbnail_url and thumbnail", () => {
+      const valid = createSubmissionSchema.safeParse({
         registration_id: "reg_123",
         project_name: "Project Beta",
         description: "Deskripsi project yang memenuhi syarat minimal karakter",
@@ -172,8 +176,7 @@ describe("Validation Schemas Suite", () => {
           },
         ],
       });
-      assert.equal(invalid.success, false);
-      assert.ok(invalid.error.issues.some((i) => i.path.includes("thumbnail_url")));
+      assert.equal(valid.success, true);
     });
 
     test("createSubmissionSchema should reject invalid thumbnail_url format", () => {
@@ -363,6 +366,105 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(valid.success, true);
       assert.equal(valid.data.registration_id, "reg_uiux_123");
+    });
+  });
+
+  describe("Product Validation", () => {
+    test("createProductSchema should accept product with only Diamond price (price_diamond)", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Stiker Keren",
+        description: "Stiker eksklusif merchandise lomba MIA 2026",
+        price_diamond: 50,
+        price_xp: 0,
+        reward_xp: 0,
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price_diamond, 50);
+      assert.equal(valid.data.price_xp, 0);
+    });
+
+    test("createProductSchema should coerce string numbers from multipart form-data", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Stiker Keren Form-Data",
+        description: "Stiker eksklusif merchandise lomba MIA 2026",
+        price_diamond: "75",
+        price_xp: "10",
+        stock: "5",
+        reward_xp: "0",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price_diamond, 75);
+      assert.equal(valid.data.price_xp, 10);
+      assert.equal(valid.data.stock, 5);
+    });
+
+    test("createProductSchema should accept product with only XP price", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Badge XP Spesial",
+        description: "Badge penghargaan peserta lomba dengan poin XP",
+        price_diamond: 0,
+        price_xp: 150,
+        reward_xp: 0,
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.price_diamond, 0);
+      assert.equal(valid.data.price_xp, 150);
+    });
+
+    test("createProductSchema should reject product if both Diamond price and XP price are 0", () => {
+      const invalid = createProductSchema.safeParse({
+        name: "Produk Gratisan",
+        description: "Deskripsi barang gratisan tanpa harga sama sekali",
+        price_diamond: 0,
+        price_xp: 0,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("Minimal salah satu harga")
+        )
+      );
+    });
+
+    test("createProductSchema should reject product with XP price having reward XP (gabisa konversi ke XP)", () => {
+      const invalid = createProductSchema.safeParse({
+        name: "Produk Kontradiktif",
+        description: "Beli pakai XP tapi dapat reward XP juga (tidak diizinkan)",
+        price_diamond: 10,
+        price_xp: 100,
+        reward_xp: 50,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("tidak dapat dikonversi ke XP")
+        )
+      );
+    });
+
+    test("updateProductSchema should reject price_xp > 0 with reward_xp > 0", () => {
+      const invalid = updateProductSchema.safeParse({
+        price_xp: 200,
+        reward_xp: 20,
+      });
+      assert.equal(invalid.success, false);
+      assert.ok(
+        invalid.error.issues.some((i) =>
+          i.message.includes("tidak dapat dikonversi ke XP")
+        )
+      );
+    });
+
+    test("createProductSchema should support max_redeem_per_team", () => {
+      const valid = createProductSchema.safeParse({
+        name: "Merchandise Eksklusif",
+        description: "Merchandise eksklusif dengan limit 3 per tim",
+        price_diamond: 50,
+        price_xp: 0,
+        max_redeem_per_team: "3",
+      });
+      assert.equal(valid.success, true);
+      assert.equal(valid.data.max_redeem_per_team, 3);
     });
   });
 });

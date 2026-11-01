@@ -540,13 +540,6 @@ export const createSubmission = async (submissionData, userId) => {
     }
   }
 
-  // Validate thumbnail is present
-  const thumbnailUrl =
-    submissionFields.thumbnail_url || submissionFields.thumbnail;
-  if (!thumbnailUrl || typeof thumbnailUrl !== "string" || thumbnailUrl.trim() === "") {
-    throw new Error("Thumbnail karya wajib diunggah");
-  }
-
   // Check if user already has a submission for this registration
   const [existingSubmission] = await db
     .select()
@@ -680,15 +673,9 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
       updateFields.sub_theme = normalizeSubTheme(submissionFields.sub_theme);
     }
     if (submissionFields.thumbnail_url !== undefined) {
-      if (!submissionFields.thumbnail_url || submissionFields.thumbnail_url.trim() === "") {
-        throw new Error("Thumbnail karya wajib diisi");
-      }
-      updateFields.thumbnail_url = submissionFields.thumbnail_url;
+      updateFields.thumbnail_url = submissionFields.thumbnail_url || null;
     } else if (submissionFields.thumbnail !== undefined) {
-      if (!submissionFields.thumbnail || submissionFields.thumbnail.trim() === "") {
-        throw new Error("Thumbnail karya wajib diisi");
-      }
-      updateFields.thumbnail_url = submissionFields.thumbnail;
+      updateFields.thumbnail_url = submissionFields.thumbnail || null;
     }
     if (submissionFields.admin_feedback !== undefined) {
       updateFields.admin_feedback = submissionFields.admin_feedback;

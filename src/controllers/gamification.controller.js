@@ -237,7 +237,7 @@ export const redeemProductController = async (req, res) => {
     }
     if (
       error.message === "Insufficient points" ||
-      error.message === "Product is out of stock" ||
+      error.message === "Sorry, product is out of stock :(" ||
       error.message === "Product is not active" ||
       error.message.includes("1 kali") ||
       error.message.includes("hanya dapat di-redeem")
@@ -256,6 +256,7 @@ export const getAllRedeemUserController = async (req, res) => {
       limit: req.query.limit,
       search: req.query.search,
       user_id: req.query.user_id,
+      registration_id: req.query.registration_id,
       product_id: req.query.product_id,
       category_id: req.query.category_id,
     };
@@ -286,6 +287,7 @@ export const getMyRedeemController = async (req, res) => {
       search: req.query.search,
       product_id: req.query.product_id,
       category_id: req.query.category_id,
+      registration_id: req.query.registration_id,
     };
 
     const result = await getMyRedeem(userId, filters);
