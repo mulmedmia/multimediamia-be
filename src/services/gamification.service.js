@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, and, sql, desc, gte, isNull } from "drizzle-orm";
+import { eq, or, like, ilike, and, sql, desc, gte, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -406,14 +406,16 @@ export const getAllRedeemUser = async (filters = {}) => {
     }
   }
 
-  if (search) {
+  if (search && search.trim()) {
+    const searchPattern = `%${search.trim()}%`;
     conditions.push(
       or(
-        like(schema.User.name, `%${search}%`),
-        like(schema.User.email, `%${search}%`),
-        like(schema.User.whatsapp_number, `%${search}%`),
-        like(schema.Registration.team_name, `%${search}%`),
-        like(schema.product.name, `%${search}%`)
+        ilike(schema.Registration.team_name, searchPattern),
+        ilike(schema.User.name, searchPattern),
+        ilike(schema.product.name, searchPattern),
+        ilike(schema.User.email, searchPattern),
+        ilike(schema.User.whatsapp_number, searchPattern),
+        ilike(schema.Registration.team_members, searchPattern)
       )
     );
   }
@@ -565,8 +567,8 @@ export const getMyRedeem = async (userId, filters = {}) => {
     );
   }
 
-  if (search) {
-    conditions.push(like(schema.product.name, `%${search}%`));
+  if (search && search.trim()) {
+    conditions.push(ilike(schema.product.name, `%${search.trim()}%`));
   }
 
   const whereClause = and(...conditions);
