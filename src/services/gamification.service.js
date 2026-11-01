@@ -402,12 +402,7 @@ export const getAllRedeemUser = async (filters = {}) => {
     if (category_id.toLowerCase() === "global") {
       conditions.push(isNull(schema.product.category_id));
     } else if (category_id.toLowerCase() !== "all") {
-      conditions.push(
-        or(
-          eq(schema.product.category_id, category_id),
-          eq(schema.Registration.category_id, category_id)
-        )
-      );
+      conditions.push(eq(schema.product.category_id, category_id));
     }
   }
 
