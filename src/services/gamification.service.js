@@ -389,7 +389,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
 // Get all redemption history (admin only)
 export const getAllRedeemUser = async (filters = {}) => {
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
-  const safeLimit = Math.max(1, parseInt(filters.limit, 10) || 10);
+  const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
   const { search, user_id, registration_id, product_id, category_id } = filters;
 
@@ -550,7 +550,7 @@ export const getAllRedeemUser = async (filters = {}) => {
 // Get user's own redemption history
 export const getMyRedeem = async (userId, filters = {}) => {
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
-  const safeLimit = Math.max(1, parseInt(filters.limit, 10) || 10);
+  const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
   const { search, product_id, category_id, registration_id } = filters;
 
