@@ -34,7 +34,7 @@ export const getAllSubmissions = async (filters = {}) => {
     isStaff = false,
   } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
-  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
@@ -269,7 +269,7 @@ export const getSubmissionById = async (
 export const getUserSubmissions = async (userId, filters = {}) => {
   const { category_id, status } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
-  const safeLimit = Math.min(100, Math.max(1, parseInt(filters.limit, 10) || 10));
+  const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
 
   const conditions = [eq(schema.Registration.user_id, userId)];

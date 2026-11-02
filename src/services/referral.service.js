@@ -234,7 +234,7 @@ export const recordReferralOnRegistration = async (newRegistrationId, referralCo
 export const getAllReferralLogs = async (filters = {}) => {
   const { status, search, page = 1, limit = 10 } = filters;
   const safePage = Math.max(1, parseInt(page, 10) || 1);
-  const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+  const safeLimit = Math.min(500, Math.max(1, parseInt(limit, 10) || 10));
   const skip = (safePage - 1) * safeLimit;
 
   const conditions = [];
