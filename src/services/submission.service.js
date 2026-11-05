@@ -453,6 +453,84 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
   }
 };
 
+/**
+ * Evaluasi status jendela pengumpulan dan toleransi (Silent Grace Period)
+ * Sesuai spesifikasi teknis SUBMISSION_OPTIMIZATION_SPEC.md
+ *
+ * @param {object} category
+ * @param {Date} now
+ * @returns {{ allowed: boolean, isGracePeriod: boolean, graceDelaySeconds: number, message?: string }}
+ */
+export const evaluateSubmissionGracePeriod = (category, now = new Date()) => {
+  if (category.is_submission_open === false) {
+    return {
+      allowed: false,
+      isGracePeriod: false,
+      graceDelaySeconds: 0,
+      message: "Pengumpulan karya untuk kategori ini sedang ditutup oleh admin.",
+    };
+  }
+
+  const toleranceMinutes = Number(process.env.SUBMISSION_TOLERANCE_MINUTES) || 90;
+  const toleranceMs = toleranceMinutes * 60 * 1000;
+
+  let officialDeadline = null;
+  const isRevisionPhase = Boolean(category.allow_revision);
+
+  if (process.env.SUBMISSION_OFFICIAL_DEADLINE) {
+    officialDeadline = new Date(process.env.SUBMISSION_OFFICIAL_DEADLINE);
+  } else {
+    const preliminaryDeadline = category.preliminary_deadline
+      ? new Date(category.preliminary_deadline)
+      : (category.deadline ? new Date(category.deadline) : null);
+    const finalDeadline = category.final_deadline
+      ? new Date(category.final_deadline)
+      : preliminaryDeadline;
+
+    officialDeadline = isRevisionPhase ? finalDeadline : (preliminaryDeadline || finalDeadline);
+  }
+
+  if (!officialDeadline || isNaN(officialDeadline.getTime())) {
+    return {
+      allowed: true,
+      isGracePeriod: false,
+      graceDelaySeconds: 0,
+    };
+  }
+
+  const nowMs = now.getTime();
+  const officialMs = officialDeadline.getTime();
+  const hardDeadlineMs = officialMs + toleranceMs;
+
+  // Kasus 1: Masih dalam batas waktu resmi
+  if (nowMs <= officialMs) {
+    return {
+      allowed: true,
+      isGracePeriod: false,
+      graceDelaySeconds: 0,
+    };
+  }
+
+  // Kasus 2: Berada dalam jendela toleransi (Silent Grace Period)
+  if (nowMs <= hardDeadlineMs) {
+    const graceDelaySeconds = Math.floor((nowMs - officialMs) / 1000);
+    return {
+      allowed: true,
+      isGracePeriod: true,
+      graceDelaySeconds,
+    };
+  }
+
+  // Kasus 3: Melewati batas toleransi (Hard Deadline)
+  const graceDelaySeconds = Math.floor((nowMs - officialMs) / 1000);
+  return {
+    allowed: false,
+    isGracePeriod: true,
+    graceDelaySeconds,
+    message: "Batas akhir pengumpulan karya telah resmi ditutup.",
+  };
+};
+
 // Create new submission
 export const createSubmission = async (submissionData, userId) => {
   const { links, ...submissionFields } = submissionData;
@@ -622,6 +700,7 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
   }
 
   // When requester is a participant (USER role), validate submission status & deadlines
+  let userGraceUpdate = null;
   if (userRole === "USER") {
     const [category] = await db
       .select()

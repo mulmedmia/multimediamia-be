@@ -27,7 +27,7 @@ export const uploadThumbnailToImageKit = async (file) => {
 
   try {
     const webpBuffer = await sharp(file.buffer)
-      .resize({ width: 1920, withoutEnlargement: true })
+      .resize({ width: 1200, height: 675, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 80, effort: 2 })
       .toBuffer();
 

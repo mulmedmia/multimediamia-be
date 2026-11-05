@@ -20,7 +20,14 @@ const handleThumbnailUpload = (req, res, next) => {
     { name: "thumbnail", maxCount: 1 },
     { name: "image", maxCount: 1 },
   ])(req, res, (err) => {
-    if (err) {
+        if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({
+          success: false,
+          error: "FILE_TOO_LARGE",
+          message: "Ukuran thumbnail karya melebihi batas maksimal 2 MB.",
+        });
+      }
       return res.status(400).json({
         success: false,
         message: err.message || "Failed to process thumbnail file",
