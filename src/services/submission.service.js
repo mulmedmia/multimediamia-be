@@ -471,7 +471,16 @@ export const evaluateSubmissionGracePeriod = (category, now = new Date()) => {
     };
   }
 
-  const toleranceMinutes = Number(process.env.SUBMISSION_TOLERANCE_MINUTES) || 90;
+  const configuredTolerance = process.env.SUBMISSION_TOLERANCE_MINUTES;
+  const toleranceMinutes = configuredTolerance === undefined ? 90 : Number(configuredTolerance);
+  if (!Number.isFinite(toleranceMinutes) || toleranceMinutes < 0) {
+    return {
+      allowed: false,
+      isGracePeriod: false,
+      graceDelaySeconds: 0,
+      message: "Konfigurasi batas toleransi pengumpulan tidak valid.",
+    };
+  }
   const toleranceMs = toleranceMinutes * 60 * 1000;
 
   let officialDeadline = null;
@@ -492,9 +501,10 @@ export const evaluateSubmissionGracePeriod = (category, now = new Date()) => {
 
   if (!officialDeadline || isNaN(officialDeadline.getTime())) {
     return {
-      allowed: true,
+      allowed: false,
       isGracePeriod: false,
       graceDelaySeconds: 0,
+      message: "Batas waktu pengumpulan belum dikonfigurasi dengan valid.",
     };
   }
 
@@ -569,7 +579,11 @@ export const createSubmission = async (submissionData, userId) => {
     throw new Error("Category not found");
   }
 
-  // Validate deadline and submission status
+  // Enforce official deadline plus the hidden server-side grace period.
+  const graceEvaluation = evaluateSubmissionGracePeriod(category);
+  if (!graceEvaluation.allowed) {
+    throw new Error(graceEvaluation.message);
+  }
   const now = new Date();
   const preliminaryDeadline = category.preliminary_deadline
     ? new Date(category.preliminary_deadline)
@@ -577,18 +591,13 @@ export const createSubmission = async (submissionData, userId) => {
   const finalDeadline = category.final_deadline
     ? new Date(category.final_deadline)
     : preliminaryDeadline;
-
-  if (category.is_submission_open === false) {
-    throw new Error("Pengumpulan karya untuk kategori ini sedang ditutup oleh admin.");
-  }
-
-  if (finalDeadline && now > finalDeadline) {
-    throw new Error("Batas akhir pengumpulan karya final telah berakhir.");
-  }
-
-  if (preliminaryDeadline && now > preliminaryDeadline && !category.allow_revision) {
-    throw new Error("Batas pengumpulan karya sementara telah berakhir. Menunggu admin membuka fase perbaikan.");
-  }
+  const officialDeadline = process.env.SUBMISSION_OFFICIAL_DEADLINE
+    ? new Date(process.env.SUBMISSION_OFFICIAL_DEADLINE)
+    : (category.allow_revision ? finalDeadline : (preliminaryDeadline || finalDeadline));
+  const gracePeriodFields = {
+    is_grace_period: graceEvaluation.isGracePeriod,
+    grace_delay_seconds: graceEvaluation.graceDelaySeconds,
+  };
 
   const catSlug = (category.slug || "").toUpperCase();
   const catName = (category.name || "").toUpperCase();
@@ -601,7 +610,7 @@ export const createSubmission = async (submissionData, userId) => {
   if (isWiaCategory) {
     const isFinalPhase = Boolean(
       category.allow_revision ||
-      (preliminaryDeadline && now > preliminaryDeadline)
+      (officialDeadline && now > officialDeadline)
     );
     validateWiaLinks(links, category, isFinalPhase);
     if (!normalizedSubTheme) {
@@ -610,7 +619,7 @@ export const createSubmission = async (submissionData, userId) => {
   } else if (isUiaCategory) {
     const isFinalPhase = Boolean(
       category.allow_revision ||
-      (preliminaryDeadline && now > preliminaryDeadline)
+      (officialDeadline && now > officialDeadline)
     );
     validateUiaLinks(links, category, isFinalPhase);
     if (!normalizedSubTheme) {
@@ -647,6 +656,7 @@ export const createSubmission = async (submissionData, userId) => {
       description: submissionFields.description,
       flow_application: submissionFields.flow_application,
       sub_theme: normalizedSubTheme,
+      ...gracePeriodFields,
       thumbnail_url:
         submissionFields.thumbnail_url || submissionFields.thumbnail || null,
       admin_feedback: submissionFields.admin_feedback || null,
@@ -699,7 +709,7 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     throw new Error("Unauthorized to update this submission");
   }
 
-  // When requester is a participant (USER role), validate submission status & deadlines
+  // Participants follow the same official deadline and grace window for edits.
   let userGraceUpdate = null;
   if (userRole === "USER") {
     const [category] = await db
@@ -708,32 +718,33 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
       .where(eq(schema.Category.category_id, registration.category_id))
       .limit(1);
 
-    if (category) {
-      const now = new Date();
-      const preliminaryDeadline = category.preliminary_deadline
-        ? new Date(category.preliminary_deadline)
-        : (category.deadline ? new Date(category.deadline) : null);
-      const finalDeadline = category.final_deadline
-        ? new Date(category.final_deadline)
-        : preliminaryDeadline;
-
-      if (category.is_submission_open === false) {
-        throw new Error("Pengumpulan karya sedang ditutup oleh admin. Karya tidak dapat diubah.");
-      }
-
-      if (finalDeadline && now > finalDeadline) {
-        throw new Error("Batas akhir pengumpulan karya final telah berakhir. Karya tidak dapat diubah lagi.");
-      }
-
-      if (preliminaryDeadline && now > preliminaryDeadline && !category.allow_revision) {
-        throw new Error("Batas pengumpulan karya sementara telah berakhir. Karya tidak dapat diedit sampai admin membuka fase perbaikan.");
-      }
+    if (!category) {
+      throw new Error("Category not found");
+    }
+    const graceEvaluation = evaluateSubmissionGracePeriod(category);
+    if (!graceEvaluation.allowed) {
+      throw new Error(graceEvaluation.message);
+    }
+    const now = new Date();
+    const preliminaryDeadline = category.preliminary_deadline
+      ? new Date(category.preliminary_deadline)
+      : (category.deadline ? new Date(category.deadline) : null);
+    const finalDeadline = category.final_deadline
+      ? new Date(category.final_deadline)
+      : preliminaryDeadline;
+    const officialDeadline = process.env.SUBMISSION_OFFICIAL_DEADLINE
+      ? new Date(process.env.SUBMISSION_OFFICIAL_DEADLINE)
+      : (category.allow_revision ? finalDeadline : (preliminaryDeadline || finalDeadline));
+    userGraceUpdate = {
+      is_grace_period: graceEvaluation.isGracePeriod,
+      grace_delay_seconds: graceEvaluation.graceDelaySeconds,
+    };
 
       // Khusus kategori WIA & UIA, validasi kelengkapan links jika links diperbarui
       if (links !== undefined) {
         const isFinalPhase = Boolean(
           category.allow_revision ||
-          (preliminaryDeadline && now > preliminaryDeadline)
+          (officialDeadline && now > officialDeadline)
         );
         const editCatSlug = (category.slug || "").toUpperCase();
         const editCatName = (category.name || "").toUpperCase();
@@ -743,7 +754,6 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
           validateUiaLinks(links, category, isFinalPhase);
         }
       }
-    }
   }
 
   await db.transaction(async (tx) => {
@@ -751,6 +761,7 @@ export const updateSubmission = async (id, submissionData, userId, userRole = "U
     const updateFields = {
       updated_by: userId,
       updated_at: new Date(),
+      ...(userGraceUpdate || {}),
     };
     if (submissionFields.project_name !== undefined) updateFields.project_name = submissionFields.project_name;
     if (submissionFields.description !== undefined) updateFields.description = submissionFields.description;
