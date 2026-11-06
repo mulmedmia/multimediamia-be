@@ -120,6 +120,8 @@ export const Submission = pgTable(
     thumbnail_url: text("thumbnail_url"),
     admin_feedback: text("admin_feedback"),
     sub_theme: text("sub_theme"),
+    is_grace_period: boolean("is_grace_period").default(false).notNull(),
+    grace_delay_seconds: integer("grace_delay_seconds").default(0),
     status: submissionStatusEnum("status").default("PENDING").notNull(),
     is_verified: boolean("is_verified").default(false).notNull(),
     created_by: text("created_by"),
