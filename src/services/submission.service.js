@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, ilike, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, or, like, ilike, and, sql, desc, inArray, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -30,6 +30,8 @@ export const getAllSubmissions = async (filters = {}) => {
     is_verified,
     search,
     sub_theme,
+    updated_after,
+    updated_before,
     show_it = false,
     isStaff = false,
   } = filters;
@@ -61,6 +63,32 @@ export const getAllSubmissions = async (filters = {}) => {
   }
   if (sub_theme && sub_theme !== "ALL") {
     conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
+  }
+  const afterParam = updated_after;
+  if (afterParam) {
+    let dateObj;
+    if (afterParam instanceof Date) {
+      dateObj = afterParam;
+    } else if (typeof afterParam === "string" && afterParam.trim() !== "") {
+      const trimmed = afterParam.trim();
+      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`);
+    }
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      conditions.push(gte(schema.Submission.updated_at, dateObj));
+    }
+  }
+  const beforeParam = updated_before || filters.edited_before;
+  if (beforeParam) {
+    let dateObj;
+    if (beforeParam instanceof Date) {
+      dateObj = beforeParam;
+    } else if (typeof beforeParam === "string" && beforeParam.trim() !== "") {
+      const trimmed = beforeParam.trim();
+      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T23:59:59.999Z`);
+    }
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      conditions.push(lte(schema.Submission.updated_at, dateObj));
+    }
   }
   if (search && search.trim() !== "") {
     const searchPattern = `%${search.trim()}%`;
