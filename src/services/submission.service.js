@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, ilike, and, sql, desc, inArray, gte, lte, gt } from "drizzle-orm";
+import { eq, or, ilike, and, sql, desc, inArray, gte, lte, gt, asc } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -34,6 +34,8 @@ export const getAllSubmissions = async (filters = {}) => {
     updated_before,
     show_it = false,
     isStaff = false,
+    sort_by,
+    order,
   } = filters;
   const safePage = Math.max(1, parseInt(filters.page, 10) || 1);
   const safeLimit = Math.min(500, Math.max(1, parseInt(filters.limit, 10) || 10));
@@ -108,6 +110,13 @@ export const getAllSubmissions = async (filters = {}) => {
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+  let orderByClause = desc(schema.Submission.created_at);
+  if (sort_by === "created_at") {
+    orderByClause = order === "asc" ? asc(schema.Submission.created_at) : desc(schema.Submission.created_at);
+  } else if (sort_by === "updated_at") {
+    orderByClause = order === "asc" ? asc(schema.Submission.updated_at) : desc(schema.Submission.updated_at);
+  }
+
   const [submissionsList, [countResult]] = await Promise.all([
     db
       .select({ submission_id: schema.Submission.submission_id })
@@ -116,7 +125,7 @@ export const getAllSubmissions = async (filters = {}) => {
       .leftJoin(schema.User, eq(schema.Registration.user_id, schema.User.users_id))
       .leftJoin(schema.Category, eq(schema.Registration.category_id, schema.Category.category_id))
       .where(whereClause)
-      .orderBy(desc(schema.Submission.created_at))
+      .orderBy(orderByClause, desc(schema.Submission.created_at))
       .limit(safeLimit)
       .offset(skip),
     db
