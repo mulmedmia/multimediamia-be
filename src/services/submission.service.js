@@ -70,7 +70,7 @@ export const getAllSubmissions = async (filters = {}) => {
       gt(schema.Submission.updated_at, schema.Category.preliminary_deadline),
       sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'PROPOSAL')`,
       sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'ORIGINALITY_STATEMENT')`,
-      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'VIDEO')`
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'YOUTUBE')`
     );
   }
   if (search && search.trim() !== "") {
