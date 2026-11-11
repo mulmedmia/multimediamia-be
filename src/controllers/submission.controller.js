@@ -79,6 +79,8 @@ export const getSubmissions = async (req, res) => {
       sub_theme: req.query.sub_theme,
       updated_after: req.query.updated_after,
       updated_before: req.query.updated_before,
+      sort_by: req.query.sort_by,
+      order: req.query.order,
       show_it: isShowIt,
       isStaff,
     };
