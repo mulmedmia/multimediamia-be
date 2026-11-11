@@ -30,6 +30,7 @@ export const getAllSubmissions = async (filters = {}) => {
     is_verified,
     search,
     sub_theme,
+    phase,
     updated_after,
     updated_before,
     show_it = false,
@@ -66,6 +67,13 @@ export const getAllSubmissions = async (filters = {}) => {
   if (sub_theme && sub_theme !== "ALL") {
     conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
   }
+  if (phase && String(phase).toUpperCase() === "FINAL") {
+    conditions.push(
+      gt(schema.Submission.updated_at, schema.Category.preliminary_deadline),
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'PROPOSAL')`,
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'ORIGINALITY_STATEMENT')`
+    );
+  }
   const afterParam = updated_after;
   if (afterParam) {
     let dateObj;
@@ -73,7 +81,7 @@ export const getAllSubmissions = async (filters = {}) => {
       dateObj = afterParam;
     } else if (typeof afterParam === "string" && afterParam.trim() !== "") {
       const trimmed = afterParam.trim();
-      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`);
+      dateObj = new Date(trimmed);
     }
     if (dateObj && !isNaN(dateObj.getTime())) {
       conditions.push(
@@ -89,7 +97,7 @@ export const getAllSubmissions = async (filters = {}) => {
       dateObj = beforeParam;
     } else if (typeof beforeParam === "string" && beforeParam.trim() !== "") {
       const trimmed = beforeParam.trim();
-      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T23:59:59.999Z`);
+      dateObj = new Date(trimmed);
     }
     if (dateObj && !isNaN(dateObj.getTime())) {
       conditions.push(lte(schema.Submission.updated_at, dateObj));

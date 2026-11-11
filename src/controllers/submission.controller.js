@@ -77,6 +77,7 @@ export const getSubmissions = async (req, res) => {
       is_verified: req.query.is_verified,
       search: req.query.search,
       sub_theme: req.query.sub_theme,
+      phase: req.query.phase,
       updated_after: req.query.updated_after,
       updated_before: req.query.updated_before,
       sort_by: req.query.sort_by,
