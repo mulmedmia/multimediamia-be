@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, ilike, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, or, like, ilike, and, sql, desc, inArray, gte } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -30,6 +30,7 @@ export const getAllSubmissions = async (filters = {}) => {
     is_verified,
     search,
     sub_theme,
+    edited_since,
     show_it = false,
     isStaff = false,
   } = filters;
@@ -61,6 +62,18 @@ export const getAllSubmissions = async (filters = {}) => {
   }
   if (sub_theme && sub_theme !== "ALL") {
     conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
+  }
+  if (edited_since) {
+    let dateObj;
+    if (edited_since instanceof Date) {
+      dateObj = edited_since;
+    } else if (typeof edited_since === "string" && edited_since.trim() !== "") {
+      const trimmed = edited_since.trim();
+      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`);
+    }
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      conditions.push(gte(schema.Submission.updated_at, dateObj));
+    }
   }
   if (search && search.trim() !== "") {
     const searchPattern = `%${search.trim()}%`;
