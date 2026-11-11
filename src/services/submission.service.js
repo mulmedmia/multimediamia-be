@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
-import { eq, or, like, ilike, and, sql, desc, inArray, gte, lte } from "drizzle-orm";
+import { eq, or, ilike, and, sql, desc, inArray, gte, lte, gt } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { generateCuid } from "../db/cuid.js";
 
@@ -74,7 +74,10 @@ export const getAllSubmissions = async (filters = {}) => {
       dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`);
     }
     if (dateObj && !isNaN(dateObj.getTime())) {
-      conditions.push(gte(schema.Submission.updated_at, dateObj));
+      conditions.push(
+        gt(schema.Submission.updated_at, schema.Submission.created_at),
+        gte(schema.Submission.updated_at, dateObj),
+      );
     }
   }
   const beforeParam = updated_before || filters.edited_before;
