@@ -1,8 +1,26 @@
-node_modules
-# Keep environment variables out of version control
-.env
-.env.production
-# ignore prisma migrations
-prisma/migrations
-# ignore database backups
+# Dependencies
+node_modules/
+
+# Environment variables
+.env*
+!.env.example
+
+# Sensitive admin batch credentials (MIA-SEC-008)
+admins.json
+*admins*.json
+!admins.example.json
+
+# Database backups & migrations
 backups/
+prisma/migrations/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.agents/
+.vscode/

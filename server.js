@@ -68,11 +68,12 @@ app.use(
 
       const normalizedOrigin = origin.replace(/\/+$/, "").toLowerCase();
 
-      // Check if origin is explicitly whitelisted, matches Vercel deployment, or in dev mode
+      // Check if origin is explicitly whitelisted, matches Vercel deployment, localhost on any port, or in dev mode
       const isVercel = /^https:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(normalizedOrigin);
+      const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin);
       const isAllowed = allowedOrigins.includes(normalizedOrigin);
 
-      if (isAllowed || isVercel || process.env.NODE_ENV !== "production") {
+      if (isAllowed || isVercel || isLocalhost || process.env.NODE_ENV !== "production") {
         return callback(null, true);
       }
       return callback(new Error("CORS policy does not allow access from this origin."));

@@ -449,7 +449,7 @@ const validateWiaLinks = (links = [], category, isFinalPhase = false) => {
       throw new Error("Link deployment / live website wajib diisi pada fase pengumpulan karya final.");
     }
     if (!youtubeLink) {
-      throw new Error("Link video demo YouTube wajib diisi pada fase pengumpulan karya final.");
+      throw new Error("Link video pitching (YouTube / Google Drive) wajib diisi pada fase pengumpulan karya final.");
     }
   }
 };
@@ -488,7 +488,7 @@ const validateUiaLinks = (links = [], category, isFinalPhase = false) => {
       throw new Error("Link prototipe Figma wajib diisi pada fase pengumpulan karya final.");
     }
     if (!youtubeLink) {
-      throw new Error("Link video demo YouTube wajib diisi pada fase pengumpulan karya final.");
+      throw new Error("Link video pitching (YouTube / Google Drive) wajib diisi pada fase pengumpulan karya final.");
     }
   }
 };
