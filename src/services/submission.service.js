@@ -30,8 +30,7 @@ export const getAllSubmissions = async (filters = {}) => {
     is_verified,
     search,
     sub_theme,
-    updated_after,
-    updated_before,
+    phase,
     show_it = false,
     isStaff = false,
     sort_by,
@@ -66,34 +65,13 @@ export const getAllSubmissions = async (filters = {}) => {
   if (sub_theme && sub_theme !== "ALL") {
     conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
   }
-  const afterParam = updated_after;
-  if (afterParam) {
-    let dateObj;
-    if (afterParam instanceof Date) {
-      dateObj = afterParam;
-    } else if (typeof afterParam === "string" && afterParam.trim() !== "") {
-      const trimmed = afterParam.trim();
-      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T00:00:00.000Z`);
-    }
-    if (dateObj && !isNaN(dateObj.getTime())) {
-      conditions.push(
-        gt(schema.Submission.updated_at, schema.Submission.created_at),
-        gte(schema.Submission.updated_at, dateObj),
-      );
-    }
-  }
-  const beforeParam = updated_before || filters.edited_before;
-  if (beforeParam) {
-    let dateObj;
-    if (beforeParam instanceof Date) {
-      dateObj = beforeParam;
-    } else if (typeof beforeParam === "string" && beforeParam.trim() !== "") {
-      const trimmed = beforeParam.trim();
-      dateObj = new Date(trimmed.includes("T") ? trimmed : `${trimmed}T23:59:59.999Z`);
-    }
-    if (dateObj && !isNaN(dateObj.getTime())) {
-      conditions.push(lte(schema.Submission.updated_at, dateObj));
-    }
+  if (phase && String(phase).toUpperCase() === "FINAL") {
+    conditions.push(
+      gt(schema.Submission.updated_at, schema.Category.preliminary_deadline),
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'PROPOSAL')`,
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'ORIGINALITY_STATEMENT')`,
+      sql`EXISTS (SELECT 1 FROM ${schema.SubmissionLink} WHERE ${schema.SubmissionLink.submission_id} = ${schema.Submission.submission_id} AND ${schema.SubmissionLink.link_type} = 'YOUTUBE')`
+    );
   }
   if (search && search.trim() !== "") {
     const searchPattern = `%${search.trim()}%`;
