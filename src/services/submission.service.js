@@ -588,6 +588,11 @@ export const createSubmission = async (submissionData, userId) => {
     throw new Error("Unauthorized: Registration does not belong to user");
   }
 
+  // Check registration verification status
+  if (!registration.is_verified || !registration.is_verified_finance) {
+    throw new Error("Pendaftaran belum diverifikasi oleh admin atau bagian keuangan");
+  }
+
   // Check if category exists
   const [category] = await db
     .select()
