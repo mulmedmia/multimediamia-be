@@ -180,10 +180,10 @@ export const getAllSubmissions = async (filters = {}) => {
         updated_by_name: isPublicView ? undefined : (row.updater?.name || row.Submission.updated_by || "-"),
         thumbnail: row.Submission.thumbnail_url || null,
         thumbnail_url: row.Submission.thumbnail_url || null,
-        links: [],
+        links: isPublicView ? undefined : [],
       };
     }
-    if (row.SubmissionLink) {
+    if (!isPublicView && row.SubmissionLink) {
       submissionMap[subId].links.push(row.SubmissionLink);
     }
   }
