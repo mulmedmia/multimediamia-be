@@ -269,16 +269,18 @@ export const getSubmissionById = async (
     updated_by_name: isPublicView ? undefined : (details[0].updater?.name || details[0].Submission.updated_by || "-"),
     thumbnail: details[0].Submission.thumbnail_url || null,
     thumbnail_url: details[0].Submission.thumbnail_url || null,
-    links: [],
+    links: isPublicView ? undefined : [],
   };
 
   const seenLinkIds = new Set();
-  for (const row of details) {
-    if (row.SubmissionLink && !seenLinkIds.has(row.SubmissionLink.link_id)) {
-      seenLinkIds.add(row.SubmissionLink.link_id);
-      submission.links.push(row.SubmissionLink);
+  if (!isPublicView) {
+    for (const row of details) {
+      if (row.SubmissionLink && !seenLinkIds.has(row.SubmissionLink.link_id)) {
+        seenLinkIds.add(row.SubmissionLink.link_id);
+        submission.links.push(row.SubmissionLink);
+      }
     }
-  }
+}
 
   return submission;
 };
