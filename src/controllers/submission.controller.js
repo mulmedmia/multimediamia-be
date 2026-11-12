@@ -165,6 +165,31 @@ export const createNewSubmission = async (req, res) => {
       }
     }
 
+    // Early check registration verification status & ownership SEBELUM upload file ke ImageKit
+    if (submissionData.registration_id) {
+      const [registration] = await db
+        .select()
+        .from(schema.Registration)
+        .where(eq(schema.Registration.registration_id, submissionData.registration_id))
+        .limit(1);
+
+      if (!registration) {
+        return response.error(res, "Registration not found", 404);
+      }
+
+      if (registration.user_id !== userId) {
+        return response.error(res, "Unauthorized: Registration does not belong to user", 403);
+      }
+
+      if (!registration.is_verified || !registration.is_verified_finance) {
+        return response.error(
+          res,
+          "Pendaftaran belum diverifikasi oleh admin atau bagian keuangan",
+          400
+        );
+      }
+    }
+
     // Handle file upload to ImageKit
     const thumbnailFile =
       req.file ||
@@ -203,6 +228,7 @@ export const createNewSubmission = async (req, res) => {
     }
     if (
       error.message === "User already has a submission for this category" ||
+      error.message?.includes("belum diverifikasi") ||
       error.message?.includes("Batas") ||
       error.message?.includes("Pengumpulan karya") ||
       error.message?.includes("wajib diisi") ||
