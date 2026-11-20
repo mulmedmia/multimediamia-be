@@ -124,6 +124,7 @@ export const Submission = pgTable(
     grace_delay_seconds: integer("grace_delay_seconds").default(0),
     status: submissionStatusEnum("status").default("PENDING").notNull(),
     is_verified: boolean("is_verified").default(false).notNull(),
+    is_finalist: boolean("is_finalist").default(false).notNull(),
     created_by: text("created_by"),
     updated_by: text("updated_by"),
     created_at: timestamp("created_at").defaultNow().notNull(),
@@ -131,6 +132,7 @@ export const Submission = pgTable(
   },
   (table) => [
     index("idx_submission_show_it").on(table.status, table.is_verified, table.created_at.desc()),
+    index("idx_submission_show_it_finalist").on(table.status, table.is_verified, table.is_finalist, table.created_at.desc()),
     index("idx_submission_registration_id").on(table.registration_id),
     uniqueIndex("idx_submission_registration_id_unique").on(table.registration_id),
   ]

@@ -6,12 +6,14 @@ import {
   updateSubmission,
   deleteSubmission,
   updateSubmissionStatus,
+  updateSubmissionFinalist,
 } from "../services/submission.service.js";
 import { response } from "../utils/response.js";
 import {
   createSubmissionSchema,
   updateSubmissionSchema,
   updateSubmissionStatusSchema,
+  updateSubmissionFinalistSchema,
 } from "../models/submission.model.js";
 import { db } from "../db/index.js";
 import * as schema from "../db/schema.js";
@@ -75,6 +77,7 @@ export const getSubmissions = async (req, res) => {
       registration_id: req.query.registration_id,
       status: req.query.status,
       is_verified: req.query.is_verified,
+      is_finalist: req.query.is_finalist,
       search: req.query.search,
       sub_theme: req.query.sub_theme,
       phase: req.query.phase,
@@ -385,6 +388,46 @@ export const updateSubmissionStatusById = async (req, res) => {
       "Failed to update submission status",
       500,
       error.message
+    );
+  }
+};
+
+// Update submission finalist status (admin only)
+export const updateSubmissionFinalistById = async (req, res) => {
+  try {
+    const submissionId = req.params.id;
+    const validation = updateSubmissionFinalistSchema.safeParse(req.body);
+    if (!validation.success) {
+      return response.validation(res, validation.error.format());
+    }
+
+    const updatedSubmission = await updateSubmissionFinalist(
+      submissionId,
+      validation.data.is_finalist,
+      req.user?.userId
+    );
+    return response.success(
+      res,
+      updatedSubmission,
+      validation.data.is_finalist
+        ? "Karya berhasil ditandai sebagai Top 10 Finalist"
+        : "Karya dihapus dari daftar Top 10 Finalist"
+    );
+  } catch (error) {
+    if (error.message === "Submission not found") {
+      return response.error(res, error.message, 404);
+    }
+    if (
+      error.message?.includes("Maksimal 10 finalis") ||
+      error.message?.includes("Hanya karya berstatus APPROVED")
+    ) {
+      return response.error(res, error.message, 400);
+    }
+    return response.error(
+      res,
+      "Failed to update submission finalist status",
+      500,
+      process.env.NODE_ENV === "production" ? undefined : error.message
     );
   }
 };

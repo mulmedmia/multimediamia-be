@@ -28,6 +28,7 @@ export const getAllSubmissions = async (filters = {}) => {
     registration_id,
     status,
     is_verified,
+    is_finalist,
     search,
     sub_theme,
     phase,
@@ -61,6 +62,9 @@ export const getAllSubmissions = async (filters = {}) => {
   }
   if (is_verified !== undefined) {
     conditions.push(eq(schema.Submission.is_verified, is_verified === "true" || is_verified === true));
+  }
+  if (is_finalist !== undefined && is_finalist !== "" && is_finalist !== "ALL") {
+    conditions.push(eq(schema.Submission.is_finalist, is_finalist === "true" || is_finalist === true));
   }
   if (sub_theme && sub_theme !== "ALL") {
     conditions.push(ilike(schema.Submission.sub_theme, `%${sub_theme.trim()}%`));
@@ -871,6 +875,8 @@ export const updateSubmissionStatus = async (id, statusData, updatedBy = null) =
   const updateFields = {
     ...statusData,
     is_verified: isVerified,
+    // Reset status finalist jika karya tidak lagi APPROVED atau tidak ditampilkan di Show It
+    ...(effectiveStatus !== "APPROVED" || !isVerified ? { is_finalist: false } : {}),
     updated_at: new Date(),
   };
   if (updatedBy) {
@@ -881,6 +887,77 @@ export const updateSubmissionStatus = async (id, statusData, updatedBy = null) =
     .update(schema.Submission)
     .set(updateFields)
     .where(eq(schema.Submission.submission_id, id));
+
+  return await getSubmissionById(id, { isInternal: true });
+};
+
+// Update submission finalist status (admin only, max 10 per category, transactional row lock)
+export const updateSubmissionFinalist = async (id, isFinalist, updatedBy = null) => {
+  const nextFinalist = Boolean(isFinalist);
+
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({
+        Submission: schema.Submission,
+        Registration: schema.Registration,
+      })
+      .from(schema.Submission)
+      .innerJoin(
+        schema.Registration,
+        eq(schema.Submission.registration_id, schema.Registration.registration_id)
+      )
+      .where(eq(schema.Submission.submission_id, id))
+      .limit(1);
+
+    if (!row) {
+      throw new Error("Submission not found");
+    }
+
+    // Serialize concurrent finalist updates per category to prevent TOCTOU > 10 quota bypass
+    await tx.execute(
+      sql`SELECT "category_id" FROM "Category" WHERE "category_id" = ${row.Registration.category_id} FOR UPDATE`
+    );
+
+    if (nextFinalist && !row.Submission.is_finalist) {
+      if (row.Submission.status !== "APPROVED" || !row.Submission.is_verified) {
+        throw new Error(
+          "Hanya karya berstatus APPROVED dan ditampilkan di Show It yang dapat dipilih sebagai Top 10 Finalist."
+        );
+      }
+
+      const [countResult] = await tx
+        .select({ count: sql`count(*)` })
+        .from(schema.Submission)
+        .innerJoin(
+          schema.Registration,
+          eq(schema.Submission.registration_id, schema.Registration.registration_id)
+        )
+        .where(
+          and(
+            eq(schema.Registration.category_id, row.Registration.category_id),
+            eq(schema.Submission.is_finalist, true)
+          )
+        );
+
+      if (Number(countResult?.count || 0) >= 10) {
+        throw new Error(
+          "Maksimal 10 finalis per kategori lomba telah tercapai. Hapus centang salah satu finalis terlebih dahulu."
+        );
+      }
+    }
+
+    const updateFields = {
+      is_finalist: nextFinalist,
+    };
+    if (updatedBy) {
+      updateFields.updated_by = updatedBy;
+    }
+
+    await tx
+      .update(schema.Submission)
+      .set(updateFields)
+      .where(eq(schema.Submission.submission_id, id));
+  });
 
   return await getSubmissionById(id, { isInternal: true });
 };
