@@ -131,3 +131,8 @@ export const updateSubmissionStatusSchema = z.object({
     .nullable()
     .optional(),
 });
+
+// Schema for admin to toggle finalist status (Top 10 Finalist)
+export const updateSubmissionFinalistSchema = z.object({
+  is_finalist: z.boolean({ required_error: "is_finalist wajib berupa boolean" }),
+});

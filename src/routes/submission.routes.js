@@ -7,6 +7,7 @@ import {
   updateExistingSubmission,
   deleteSubmissionById,
   updateSubmissionStatusById,
+  updateSubmissionFinalistById,
 } from "../controllers/submission.controller.js";
 import {
   authenticateToken,
@@ -58,6 +59,12 @@ router.patch(
   authenticateToken,
   isAdmin,
   updateSubmissionStatusById
+);
+router.patch(
+  "/:id/finalist",
+  authenticateToken,
+  isAdmin,
+  updateSubmissionFinalistById
 );
 
 export default router;
