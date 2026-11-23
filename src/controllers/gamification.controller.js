@@ -252,22 +252,29 @@ export const redeemProductController = async (req, res) => {
     ) {
       return response.error(res, error.message, 404);
     }
+    const errMsgLower = (error.message || "").toLowerCase();
     if (
       error.message === "Insufficient points" ||
       error.message === "Insufficient XP" ||
       error.message === "Insufficient points or XP" ||
       error.message === "Sorry, product is out of stock :(" ||
       error.message === "Product is not active" ||
-      error.message.includes("1 kali") ||
-      error.message.includes("hanya dapat di-redeem") ||
-      error.message.includes("batas maksimal") ||
-      error.message.includes("email penerima") ||
-      error.message.includes("Email penerima") ||
-      error.message.includes("Format email")
+      errMsgLower.includes("1 kali") ||
+      errMsgLower.includes("hanya dapat di-redeem") ||
+      errMsgLower.includes("batas maksimal") ||
+      errMsgLower.includes("email penerima") ||
+      errMsgLower.includes("format email") ||
+      errMsgLower.includes("kategori lomba terkait") ||
+      errMsgLower.includes("pendaftaran/tim tidak ditemukan")
     ) {
       return response.error(res, error.message, 400);
     }
-    return response.error(res, "Failed to redeem product", 500, error.message);
+    return response.error(
+      res,
+      "Failed to redeem product",
+      500,
+      process.env.NODE_ENV === "production" ? undefined : error.message
+    );
   }
 };
 

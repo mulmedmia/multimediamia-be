@@ -106,9 +106,10 @@ export const updateRegistrationGamification = async (
   };
 };
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// Strict email regex: must start with alphanumeric (blocks Excel/CSV formula prefixes =, +, -, @)
+export const RECIPIENT_EMAIL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-function parseRecipientEmails(raw) {
+export function parseRecipientEmails(raw) {
   if (!raw) return [];
   if (Array.isArray(raw)) return raw.filter((e) => typeof e === "string" && e.trim());
   if (typeof raw === "string") {
@@ -127,9 +128,22 @@ function parseRecipientEmails(raw) {
   return [];
 }
 
-function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
+export function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
+  // Jika produk tidak memerlukan email penerima, abaikan input agar tidak menyimpan data liar
+  if (!isRequired) {
+    return null;
+  }
+
   let list = [];
   if (Array.isArray(rawEmails)) {
+    if (rawEmails.length > 3) {
+      throw new Error("Maksimal 3 email penerima yang diperbolehkan.");
+    }
+    for (const item of rawEmails) {
+      if (typeof item !== "string") {
+        throw new Error("Format email penerima harus berupa teks email yang valid.");
+      }
+    }
     list = rawEmails;
   } else if (typeof rawEmails === "string" && rawEmails.trim()) {
     list = parseRecipientEmails(rawEmails);
@@ -138,10 +152,10 @@ function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
   }
 
   const cleaned = list
-    .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+    .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-  if (isRequired && cleaned.length < 1) {
+  if (cleaned.length < 1) {
     throw new Error("Minimal 1 email penerima wajib diisi untuk produk ini.");
   }
 
@@ -150,7 +164,7 @@ function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
   }
 
   for (const email of cleaned) {
-    if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+    if (email.length > 254 || !RECIPIENT_EMAIL_REGEX.test(email)) {
       throw new Error(`Format email penerima tidak valid: ${email}`);
     }
   }
@@ -159,7 +173,7 @@ function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
     throw new Error("Email penerima tidak boleh duplikat.");
   }
 
-  return cleaned.length > 0 ? cleaned : null;
+  return cleaned;
 }
 
 // Redeem product with points (with Atomic Conditional Updates to prevent race conditions - Option A)
@@ -227,8 +241,12 @@ export const redeemProduct = async (
     .where(and(...regConditions))
     .limit(1);
 
-  // Jika tidak ditemukan dengan kategori target spesifik, fallback ke registrasi user pertama
+  // Jika tidak ditemukan dengan kategori target spesifik:
+  // Hanya izinkan fallback ke registrasi user pertama jika produk bersifat GLOBAL (category_id === null)
   if (!reg) {
+    if (product.category_id) {
+      throw new Error("Produk ini hanya tersedia untuk peserta kategori lomba terkait.");
+    }
     [reg] = await db
       .select({
         registration: schema.Registration,
@@ -245,6 +263,11 @@ export const redeemProduct = async (
 
   if (!reg || !reg.registration) {
     throw new Error("Pendaftaran/tim tidak ditemukan untuk pengguna ini.");
+  }
+
+  // Pastikan jika produk khusus kategori tertentu, registrasi yang digunakan cocok kategorinya
+  if (product.category_id && reg.registration.category_id !== product.category_id) {
+    throw new Error("Produk ini hanya tersedia untuk peserta kategori lomba terkait.");
   }
 
   const currentRegistration = reg.registration;
