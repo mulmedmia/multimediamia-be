@@ -136,6 +136,12 @@ export const createNewProduct = async (req, res) => {
         productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
     }
 
+    // Convert require_recipient_emails to boolean
+    if (productData.require_recipient_emails !== undefined) {
+      productData.require_recipient_emails =
+        productData.require_recipient_emails === "true" || productData.require_recipient_emails === true;
+    }
+
     // Convert max_redeem_per_team to number (or convert is_single_redeem if provided)
     if (productData.max_redeem_per_team !== undefined && productData.max_redeem_per_team !== "") {
       productData.max_redeem_per_team = Math.max(0, parseInt(productData.max_redeem_per_team, 10) || 0);
@@ -232,6 +238,12 @@ export const updateExistingProduct = async (req, res) => {
     if (productData.is_unlimited_stock !== undefined) {
       productData.is_unlimited_stock =
         productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
+    }
+
+    // Convert require_recipient_emails to boolean if provided
+    if (productData.require_recipient_emails !== undefined) {
+      productData.require_recipient_emails =
+        productData.require_recipient_emails === "true" || productData.require_recipient_emails === true;
     }
 
     // Convert max_redeem_per_team to number if provided

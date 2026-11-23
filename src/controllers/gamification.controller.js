@@ -214,7 +214,14 @@ export const getLeaderboardByCategory = async (req, res) => {
 export const redeemProductController = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { productId, quantity, categoryId, registrationId } = req.body;
+    const {
+      productId,
+      quantity,
+      categoryId,
+      registrationId,
+      recipientEmails,
+      recipient_emails,
+    } = req.body;
 
     if (!productId) {
       return response.validation(res, { productId: "Product ID is required" });
@@ -225,7 +232,17 @@ export const redeemProductController = async (req, res) => {
       return response.validation(res, { quantity: "Quantity must be a positive integer" });
     }
 
-    const result = await redeemProduct(userId, productId, qty, categoryId, registrationId);
+    const rawRecipientEmails =
+      recipientEmails !== undefined ? recipientEmails : recipient_emails;
+
+    const result = await redeemProduct(
+      userId,
+      productId,
+      qty,
+      categoryId,
+      registrationId,
+      rawRecipientEmails
+    );
 
     return response.success(res, result, "Product redeemed successfully");
   } catch (error) {
@@ -237,10 +254,16 @@ export const redeemProductController = async (req, res) => {
     }
     if (
       error.message === "Insufficient points" ||
+      error.message === "Insufficient XP" ||
+      error.message === "Insufficient points or XP" ||
       error.message === "Sorry, product is out of stock :(" ||
       error.message === "Product is not active" ||
       error.message.includes("1 kali") ||
-      error.message.includes("hanya dapat di-redeem")
+      error.message.includes("hanya dapat di-redeem") ||
+      error.message.includes("batas maksimal") ||
+      error.message.includes("email penerima") ||
+      error.message.includes("Email penerima") ||
+      error.message.includes("Format email")
     ) {
       return response.error(res, error.message, 400);
     }

@@ -106,8 +106,71 @@ export const updateRegistrationGamification = async (
   };
 };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+function parseRecipientEmails(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw.filter((e) => typeof e === "string" && e.trim());
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((e) => typeof e === "string" && e.trim());
+      }
+    } catch {
+      return raw
+        .split(",")
+        .map((e) => e.trim())
+        .filter(Boolean);
+    }
+  }
+  return [];
+}
+
+function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
+  let list = [];
+  if (Array.isArray(rawEmails)) {
+    list = rawEmails;
+  } else if (typeof rawEmails === "string" && rawEmails.trim()) {
+    list = parseRecipientEmails(rawEmails);
+  } else if (rawEmails !== undefined && rawEmails !== null && rawEmails !== "") {
+    throw new Error("Format email penerima harus berupa daftar email.");
+  }
+
+  const cleaned = list
+    .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+    .filter(Boolean);
+
+  if (isRequired && cleaned.length < 1) {
+    throw new Error("Minimal 1 email penerima wajib diisi untuk produk ini.");
+  }
+
+  if (cleaned.length > 3) {
+    throw new Error("Maksimal 3 email penerima yang diperbolehkan.");
+  }
+
+  for (const email of cleaned) {
+    if (email.length > 254 || !EMAIL_REGEX.test(email)) {
+      throw new Error(`Format email penerima tidak valid: ${email}`);
+    }
+  }
+
+  if (new Set(cleaned).size !== cleaned.length) {
+    throw new Error("Email penerima tidak boleh duplikat.");
+  }
+
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 // Redeem product with points (with Atomic Conditional Updates to prevent race conditions - Option A)
-export const redeemProduct = async (userId, productId, quantity = 1, categoryId = null, registrationId = null) => {
+export const redeemProduct = async (
+  userId,
+  productId,
+  quantity = 1,
+  categoryId = null,
+  registrationId = null,
+  recipientEmails = null
+) => {
   const qty = Math.max(1, parseInt(quantity, 10) || 1);
 
   // Ambil user awal
@@ -134,6 +197,12 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
   if (!product.is_active) {
     throw new Error("Product is not active");
   }
+
+  // Validasi email penerima (min 1, maks 3, unik, valid) jika produk membutuhkannya atau jika dikirim
+  const normalizedRecipientEmails = validateAndNormalizeRecipientEmails(
+    recipientEmails,
+    Boolean(product.require_recipient_emails)
+  );
 
   // Tentukan registrasi tim target berdasarkan categoryId, registrationId, atau product.category_id
   const targetCategoryId = categoryId || product.category_id;
@@ -333,7 +402,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
       }
     }
 
-    // 4. Catat riwayat penukaran hadiah beserta diamond_used, xp_used, dan quantity
+    // 4. Catat riwayat penukaran hadiah beserta diamond_used, xp_used, quantity, dan recipient_emails
     await tx
       .insert(schema.Redemption)
       .values({
@@ -343,6 +412,9 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
         diamond_used: pointsNeeded,
         xp_used: xpNeeded,
         quantity: qty,
+        recipient_emails: normalizedRecipientEmails
+          ? JSON.stringify(normalizedRecipientEmails)
+          : null,
         created_by: userId,
         updated_by: userId,
       });
@@ -354,6 +426,7 @@ export const redeemProduct = async (userId, productId, quantity = 1, categoryId 
     diamond_used: pointsNeeded,
     points_used: pointsNeeded,
     xp_used: xpNeeded,
+    recipient_emails: normalizedRecipientEmails || [],
     registration: {
       registration_id: updatedRegistration.registration_id,
       category_id: updatedRegistration.category_id,
@@ -415,7 +488,8 @@ export const getAllRedeemUser = async (filters = {}) => {
         ilike(schema.product.name, searchPattern),
         ilike(schema.User.email, searchPattern),
         ilike(schema.User.whatsapp_number, searchPattern),
-        ilike(schema.Registration.team_members, searchPattern)
+        ilike(schema.Registration.team_members, searchPattern),
+        ilike(schema.Redemption.recipient_emails, searchPattern)
       )
     );
   }
@@ -477,6 +551,7 @@ export const getAllRedeemUser = async (filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    recipient_emails: parseRecipientEmails(row.Redemption.recipient_emails),
     diamond_used: row.Redemption.diamond_used,
     points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || row.User?.users_id || null,
@@ -614,6 +689,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
 
   const redemptions = rows.map((row) => ({
     ...row.Redemption,
+    recipient_emails: parseRecipientEmails(row.Redemption.recipient_emails),
     diamond_used: row.Redemption.diamond_used,
     points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || userId,
