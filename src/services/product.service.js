@@ -175,6 +175,7 @@ export const createProduct = async (productData, userId = null) => {
           ? Number(productData.reward_xp)
           : 0,
       is_unlimited_stock: productData.is_unlimited_stock !== undefined ? Boolean(productData.is_unlimited_stock) : false,
+      require_recipient_emails: productData.require_recipient_emails !== undefined ? Boolean(productData.require_recipient_emails) : false,
       max_redeem_per_team:
         productData.max_redeem_per_team !== undefined
           ? Math.max(0, parseInt(productData.max_redeem_per_team, 10) || 0)
@@ -230,6 +231,7 @@ export const updateProduct = async (id, productData, userId = null) => {
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);
   if (updateFields.is_unlimited_stock !== undefined) updateFields.is_unlimited_stock = Boolean(updateFields.is_unlimited_stock);
+  if (updateFields.require_recipient_emails !== undefined) updateFields.require_recipient_emails = Boolean(updateFields.require_recipient_emails);
   if (updateFields.max_redeem_per_team !== undefined) {
     updateFields.max_redeem_per_team = Math.max(0, parseInt(updateFields.max_redeem_per_team, 10) || 0);
   } else if (updateFields.is_single_redeem !== undefined) {
