@@ -108,28 +108,49 @@ export const updateRegistrationGamification = async (
 
 // Strict email regex: must start with alphanumeric (blocks Excel/CSV formula prefixes =, +, -, @)
 export const RECIPIENT_EMAIL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const FORMULA_PREFIX_REGEX = /^[=+\-@\t\r]/;
+const PHONE_DIGITS_REGEX = /^[0-9]{8,16}$/;
 
-export function parseRecipientEmails(raw) {
+export function parseRecipients(raw) {
   if (!raw) return [];
-  if (Array.isArray(raw)) return raw.filter((e) => typeof e === "string" && e.trim());
+  let parsed = raw;
   if (typeof raw === "string") {
     try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((e) => typeof e === "string" && e.trim());
-      }
+      parsed = JSON.parse(raw);
     } catch {
       return raw
         .split(",")
         .map((e) => e.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((email) => ({ name: "", email, phone: "" }));
     }
   }
-  return [];
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item) => {
+      if (typeof item === "string" && item.trim()) {
+        return { name: "", email: item.trim(), phone: "" };
+      }
+      if (item && typeof item === "object") {
+        const name = typeof item.name === "string" ? item.name.trim() : "";
+        const email = typeof item.email === "string" ? item.email.trim() : "";
+        const phone = typeof item.phone === "string" ? item.phone.trim() : "";
+        if (name || email || phone) {
+          return { name, email, phone };
+        }
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
+export function parseRecipientEmails(raw) {
+  return parseRecipients(raw)
+    .map((r) => r.email)
+    .filter(Boolean);
 }
 
 export function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
-  // Jika produk tidak memerlukan email penerima, abaikan input agar tidak menyimpan data liar
   if (!isRequired) {
     return null;
   }
@@ -176,6 +197,84 @@ export function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
   return cleaned;
 }
 
+export function validateAndNormalizeRecipients(rawRecipients, isRequired) {
+  // Jika produk tidak memerlukan data penerima, abaikan input agar tidak menyimpan data liar
+  if (!isRequired) {
+    return null;
+  }
+
+  if (!Array.isArray(rawRecipients)) {
+    throw new Error("Data penerima wajib diisi (minimal 1 penerima: nama, email, dan nomor telepon).");
+  }
+
+  if (rawRecipients.length > 3) {
+    throw new Error("Maksimal 3 penerima yang diperbolehkan.");
+  }
+
+  const normalized = [];
+
+  for (let i = 0; i < rawRecipients.length; i++) {
+    const item = rawRecipients[i];
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error("Format data penerima tidak valid.");
+    }
+
+    const rawName = item.name === undefined || item.name === null ? "" : item.name;
+    const rawEmail = item.email === undefined || item.email === null ? "" : item.email;
+    const rawPhone = item.phone === undefined || item.phone === null ? "" : item.phone;
+
+    if (typeof rawName !== "string" || typeof rawEmail !== "string" || typeof rawPhone !== "string") {
+      throw new Error("Nama, email, dan nomor telepon penerima harus berupa teks.");
+    }
+
+    const name = rawName.trim();
+    const email = rawEmail.trim().toLowerCase();
+    const phoneNormalized = rawPhone.trim().replace(/[\s\-()]/g, "").replace(/^\+/, "");
+
+    // Slot opsional yang kosong seluruhnya dilewati
+    if (!name && !email && !phoneNormalized) {
+      continue;
+    }
+
+    const label = `Penerima ${i + 1}`;
+    if (!name) {
+      throw new Error(`Nama ${label} wajib diisi.`);
+    }
+    if (name.length < 2 || name.length > 100 || FORMULA_PREFIX_REGEX.test(name)) {
+      throw new Error(`Nama ${label} tidak valid (2–100 karakter, tidak diawali simbol formula).`);
+    }
+    if (!email) {
+      throw new Error(`Email ${label} wajib diisi.`);
+    }
+    if (email.length > 254 || !RECIPIENT_EMAIL_REGEX.test(email)) {
+      throw new Error(`Format email ${label} tidak valid: ${email}`);
+    }
+    if (!phoneNormalized) {
+      throw new Error(`Nomor telepon ${label} wajib diisi.`);
+    }
+    if (!PHONE_DIGITS_REGEX.test(phoneNormalized)) {
+      throw new Error(`Format nomor telepon ${label} tidak valid (8–16 digit angka).`);
+    }
+
+    normalized.push({ name, email, phone: phoneNormalized });
+  }
+
+  if (normalized.length < 1) {
+    throw new Error("Minimal 1 data penerima (nama, email, dan nomor telepon) wajib diisi untuk produk ini.");
+  }
+
+  if (normalized.length > 3) {
+    throw new Error("Maksimal 3 penerima yang diperbolehkan.");
+  }
+
+  const emails = normalized.map((r) => r.email);
+  if (new Set(emails).size !== emails.length) {
+    throw new Error("Email penerima tidak boleh duplikat.");
+  }
+
+  return normalized;
+}
+
 // Redeem product with points (with Atomic Conditional Updates to prevent race conditions - Option A)
 export const redeemProduct = async (
   userId,
@@ -212,8 +311,8 @@ export const redeemProduct = async (
     throw new Error("Product is not active");
   }
 
-  // Validasi email penerima (min 1, maks 3, unik, valid) jika produk membutuhkannya atau jika dikirim
-  const normalizedRecipientEmails = validateAndNormalizeRecipientEmails(
+  // Validasi data penerima (min 1, maks 3: nama, email, no telp) jika produk membutuhkannya
+  const normalizedRecipients = validateAndNormalizeRecipients(
     recipientEmails,
     Boolean(product.require_recipient_emails)
   );
@@ -435,8 +534,8 @@ export const redeemProduct = async (
         diamond_used: pointsNeeded,
         xp_used: xpNeeded,
         quantity: qty,
-        recipient_emails: normalizedRecipientEmails
-          ? JSON.stringify(normalizedRecipientEmails)
+        recipient_emails: normalizedRecipients
+          ? JSON.stringify(normalizedRecipients)
           : null,
         created_by: userId,
         updated_by: userId,
@@ -449,7 +548,8 @@ export const redeemProduct = async (
     diamond_used: pointsNeeded,
     points_used: pointsNeeded,
     xp_used: xpNeeded,
-    recipient_emails: normalizedRecipientEmails || [],
+    recipients: normalizedRecipients || [],
+    recipient_emails: (normalizedRecipients || []).map((r) => r.email),
     registration: {
       registration_id: updatedRegistration.registration_id,
       category_id: updatedRegistration.category_id,
@@ -572,9 +672,12 @@ export const getAllRedeemUser = async (filters = {}) => {
       .where(whereClause),
   ]);
 
-  const redemptions = rows.map((row) => ({
+  const redemptions = rows.map((row) => {
+    const parsedRecipients = parseRecipients(row.Redemption.recipient_emails);
+    return {
     ...row.Redemption,
-    recipient_emails: parseRecipientEmails(row.Redemption.recipient_emails),
+    recipients: parsedRecipients,
+    recipient_emails: parsedRecipients.map((r) => r.email).filter(Boolean),
     diamond_used: row.Redemption.diamond_used,
     points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || row.User?.users_id || null,
@@ -630,7 +733,8 @@ export const getAllRedeemUser = async (filters = {}) => {
       : null,
     created_by_name: row.creator?.name || row.Redemption.created_by || "-",
     updated_by_name: row.updater?.name || row.Redemption.updated_by || "-",
-  }));
+  };
+  });
 
   const total = Number(countResult?.count || 0);
 
@@ -710,9 +814,12 @@ export const getMyRedeem = async (userId, filters = {}) => {
       .where(whereClause),
   ]);
 
-  const redemptions = rows.map((row) => ({
+  const redemptions = rows.map((row) => {
+    const parsedRecipients = parseRecipients(row.Redemption.recipient_emails);
+    return {
     ...row.Redemption,
-    recipient_emails: parseRecipientEmails(row.Redemption.recipient_emails),
+    recipients: parsedRecipients,
+    recipient_emails: parsedRecipients.map((r) => r.email).filter(Boolean),
     diamond_used: row.Redemption.diamond_used,
     points_used: row.Redemption.diamond_used,
     user_id: row.Registration?.user_id || userId,
@@ -747,7 +854,8 @@ export const getMyRedeem = async (userId, filters = {}) => {
           reward_xp: row.product.reward_xp,
         }
       : null,
-  }));
+  };
+  });
 
   const total = Number(countResult?.count || 0);
 

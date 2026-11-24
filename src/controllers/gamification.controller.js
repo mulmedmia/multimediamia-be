@@ -219,6 +219,7 @@ export const redeemProductController = async (req, res) => {
       quantity,
       categoryId,
       registrationId,
+      recipients,
       recipientEmails,
       recipient_emails,
     } = req.body;
@@ -232,8 +233,12 @@ export const redeemProductController = async (req, res) => {
       return response.validation(res, { quantity: "Quantity must be a positive integer" });
     }
 
-    const rawRecipientEmails =
-      recipientEmails !== undefined ? recipientEmails : recipient_emails;
+    const rawRecipients =
+      recipients !== undefined
+        ? recipients
+        : recipientEmails !== undefined
+        ? recipientEmails
+        : recipient_emails;
 
     const result = await redeemProduct(
       userId,
@@ -241,7 +246,7 @@ export const redeemProductController = async (req, res) => {
       qty,
       categoryId,
       registrationId,
-      rawRecipientEmails
+      rawRecipients
     );
 
     return response.success(res, result, "Product redeemed successfully");
@@ -262,8 +267,9 @@ export const redeemProductController = async (req, res) => {
       errMsgLower.includes("1 kali") ||
       errMsgLower.includes("hanya dapat di-redeem") ||
       errMsgLower.includes("batas maksimal") ||
-      errMsgLower.includes("email penerima") ||
+      errMsgLower.includes("penerima") ||
       errMsgLower.includes("format email") ||
+      errMsgLower.includes("nomor telepon") ||
       errMsgLower.includes("kategori lomba terkait") ||
       errMsgLower.includes("pendaftaran/tim tidak ditemukan")
     ) {
