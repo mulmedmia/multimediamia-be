@@ -25,6 +25,10 @@ import {
   createProductSchema,
   updateProductSchema,
 } from "../src/models/product.model.js";
+import {
+  validateAndNormalizeRecipientEmails,
+  validateAndNormalizeRecipients,
+} from "../src/services/gamification.service.js";
 
 describe("Validation Schemas Suite", () => {
   describe("Auth Validation", () => {
@@ -465,6 +469,134 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(valid.success, true);
       assert.equal(valid.data.max_redeem_per_team, 3);
+    });
+
+    test("createProductSchema should default require_recipient_emails to false and accept true", () => {
+      const defaultRes = createProductSchema.safeParse({
+        name: "Produk Biasa",
+        description: "Produk tanpa email penerima wajib diisi",
+        price_diamond: 20,
+      });
+      assert.equal(defaultRes.success, true);
+      assert.equal(defaultRes.data.require_recipient_emails, false);
+
+      const ticketRes = createProductSchema.safeParse({
+        name: "Tiket Kelas Dicoding",
+        description: "Tiket kelas online yang memerlukan 1-3 email penerima",
+        price_diamond: 100,
+        require_recipient_emails: true,
+      });
+      assert.equal(ticketRes.success, true);
+      assert.equal(ticketRes.data.require_recipient_emails, true);
+    });
+
+    test("validateAndNormalizeRecipientEmails should enforce 1-3 unique valid emails and block formula injection", () => {
+      // Non-required product ignores any passed emails
+      assert.equal(validateAndNormalizeRecipientEmails(["a@gmail.com"], false), null);
+
+      // Valid 1-3 emails normalized to lowercase
+      assert.deepEqual(
+        validateAndNormalizeRecipientEmails([" Ketua@Gmail.com ", "anggota2@upnvj.ac.id", ""], true),
+        ["ketua@gmail.com", "anggota2@upnvj.ac.id"]
+      );
+
+      // Empty when required -> throws
+      assert.throws(() => validateAndNormalizeRecipientEmails([], true), /Minimal 1 email/);
+
+      // More than 3 -> throws
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails(["a@b.co", "c@b.co", "d@b.co", "e@b.co"], true),
+        /Maksimal 3 email/
+      );
+
+      // Duplicate (case-insensitive) -> throws
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails(["User@mail.com", "user@mail.com"], true),
+        /duplikat/
+      );
+
+      // Excel/CSV formula injection prefixes (=, +, -, @) -> throws
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails(["=HYPERLINK(\"http://x\")@a.co"], true),
+        /Format email penerima tidak valid/
+      );
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails(["+cmd@a.co"], true),
+        /Format email penerima tidak valid/
+      );
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails(["-test@a.co"], true),
+        /Format email penerima tidak valid/
+      );
+
+      // Non-string element -> throws
+      assert.throws(
+        () => validateAndNormalizeRecipientEmails([123], true),
+        /Format email penerima/
+      );
+    });
+
+    test("validateAndNormalizeRecipients should enforce 1-3 recipients (name, email, phone) and block formula injection", () => {
+      // Non-required product ignores payload
+      assert.equal(
+        validateAndNormalizeRecipients(
+          [{ name: "Budi", email: "budi@gmail.com", phone: "08123456789" }],
+          false
+        ),
+        null
+      );
+
+      // Valid 2 recipients + 1 empty optional slot
+      assert.deepEqual(
+        validateAndNormalizeRecipients(
+          [
+            { name: " Budi Pratama ", email: " Budi@Gmail.com ", phone: "+62 812-3456-7890" },
+            { name: "Siti Rahma", email: "siti@upnvj.ac.id", phone: "081398765432" },
+            { name: "", email: "", phone: "" },
+          ],
+          true
+        ),
+        [
+          { name: "Budi Pratama", email: "budi@gmail.com", phone: "6281234567890" },
+          { name: "Siti Rahma", email: "siti@upnvj.ac.id", phone: "081398765432" },
+        ]
+      );
+
+      // Partial optional slot (email filled without name/phone) -> throws
+      assert.throws(
+        () =>
+          validateAndNormalizeRecipients(
+            [
+              { name: "Budi", email: "budi@gmail.com", phone: "081234567890" },
+              { name: "", email: "siti@gmail.com", phone: "" },
+            ],
+            true
+          ),
+        /Nama Penerima 2 wajib diisi/
+      );
+
+      // Formula injection in name -> throws
+      assert.throws(
+        () =>
+          validateAndNormalizeRecipients(
+            [{ name: "=SUM(A1:A2)", email: "budi@gmail.com", phone: "081234567890" }],
+            true
+          ),
+        /Nama Penerima 1 tidak valid/
+      );
+
+      // Duplicate email -> throws
+      assert.throws(
+        () =>
+          validateAndNormalizeRecipients(
+            [
+              { name: "Budi", email: "same@gmail.com", phone: "081234567890" },
+              { name: "Andi", email: "SAME@gmail.com", phone: "081234567891" },
+            ],
+            true
+          ),
+        /duplikat/
+      );
     });
   });
 });
