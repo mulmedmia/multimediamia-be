@@ -136,6 +136,12 @@ export const createNewProduct = async (req, res) => {
         productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
     }
 
+    // Convert is_single_attempt to boolean
+    if (productData.is_single_attempt !== undefined) {
+      productData.is_single_attempt =
+        productData.is_single_attempt === "true" || productData.is_single_attempt === true;
+    }
+
     // Convert require_recipient_emails to boolean
     if (productData.require_recipient_emails !== undefined) {
       productData.require_recipient_emails =
@@ -238,6 +244,12 @@ export const updateExistingProduct = async (req, res) => {
     if (productData.is_unlimited_stock !== undefined) {
       productData.is_unlimited_stock =
         productData.is_unlimited_stock === "true" || productData.is_unlimited_stock === true;
+    }
+
+    // Convert is_single_attempt to boolean if provided
+    if (productData.is_single_attempt !== undefined) {
+      productData.is_single_attempt =
+        productData.is_single_attempt === "true" || productData.is_single_attempt === true;
     }
 
     // Convert require_recipient_emails to boolean if provided

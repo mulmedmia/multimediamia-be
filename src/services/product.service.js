@@ -175,6 +175,7 @@ export const createProduct = async (productData, userId = null) => {
           ? Number(productData.reward_xp)
           : 0,
       is_unlimited_stock: productData.is_unlimited_stock !== undefined ? Boolean(productData.is_unlimited_stock) : false,
+      is_single_attempt: productData.is_single_attempt !== undefined ? Boolean(productData.is_single_attempt) : false,
       require_recipient_emails: productData.require_recipient_emails !== undefined ? Boolean(productData.require_recipient_emails) : false,
       max_redeem_per_team:
         productData.max_redeem_per_team !== undefined
@@ -231,6 +232,7 @@ export const updateProduct = async (id, productData, userId = null) => {
   if (updateFields.stock !== undefined) updateFields.stock = Number(updateFields.stock);
   if (updateFields.reward_xp !== undefined) updateFields.reward_xp = Number(updateFields.reward_xp);
   if (updateFields.is_unlimited_stock !== undefined) updateFields.is_unlimited_stock = Boolean(updateFields.is_unlimited_stock);
+  if (updateFields.is_single_attempt !== undefined) updateFields.is_single_attempt = Boolean(updateFields.is_single_attempt);
   if (updateFields.require_recipient_emails !== undefined) updateFields.require_recipient_emails = Boolean(updateFields.require_recipient_emails);
   if (updateFields.max_redeem_per_team !== undefined) {
     updateFields.max_redeem_per_team = Math.max(0, parseInt(updateFields.max_redeem_per_team, 10) || 0);

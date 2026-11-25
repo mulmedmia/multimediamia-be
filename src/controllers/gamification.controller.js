@@ -267,11 +267,14 @@ export const redeemProductController = async (req, res) => {
       errMsgLower.includes("1 kali") ||
       errMsgLower.includes("hanya dapat di-redeem") ||
       errMsgLower.includes("batas maksimal") ||
+      errMsgLower.includes("maksimal 3 penerima") ||
+      errMsgLower.includes("kesempatan 1 kali penukaran") ||
       errMsgLower.includes("penerima") ||
       errMsgLower.includes("format email") ||
       errMsgLower.includes("nomor telepon") ||
       errMsgLower.includes("kategori lomba terkait") ||
-      errMsgLower.includes("pendaftaran/tim tidak ditemukan")
+      errMsgLower.includes("pendaftaran/tim tidak ditemukan") ||
+      errMsgLower.includes("belum diverifikasi")
     ) {
       return response.error(res, error.message, 400);
     }
