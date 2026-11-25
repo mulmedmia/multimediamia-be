@@ -186,6 +186,7 @@ export const product = pgTable("product", {
   reward_xp: integer("reward_xp").default(0).notNull(),
   is_unlimited_stock: boolean("is_unlimited_stock").default(false).notNull(),
   max_redeem_per_team: integer("max_redeem_per_team").default(0).notNull(),
+  is_single_attempt: boolean("is_single_attempt").default(false).notNull(),
   require_recipient_emails: boolean("require_recipient_emails").default(false).notNull(),
   is_active: boolean("is_active").default(true).notNull(),
   created_by: text("created_by"),
