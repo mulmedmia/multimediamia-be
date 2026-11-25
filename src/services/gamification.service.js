@@ -106,8 +106,8 @@ export const updateRegistrationGamification = async (
   };
 };
 
-// Strict email regex: must start with alphanumeric (blocks Excel/CSV formula prefixes =, +, -, @)
-export const RECIPIENT_EMAIL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+// Strict email regex: must start with alphanumeric (blocks Excel/CSV formula prefixes =, +, -, @) and enforce valid domain labels
+export const RECIPIENT_EMAIL_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._%+-]{0,63}@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 const FORMULA_PREFIX_REGEX = /^[=+\-@\t\r]/;
 const PHONE_DIGITS_REGEX = /^[0-9]{8,16}$/;
 
@@ -197,14 +197,18 @@ export function validateAndNormalizeRecipientEmails(rawEmails, isRequired) {
   return cleaned;
 }
 
-export function validateAndNormalizeRecipients(rawRecipients, isRequired) {
+export function validateAndNormalizeRecipients(rawRecipients, isRequired, expectedQty = null) {
   // Jika produk tidak memerlukan data penerima, abaikan input agar tidak menyimpan data liar
   if (!isRequired) {
     return null;
   }
 
+  if (expectedQty !== null && (expectedQty < 1 || expectedQty > 3)) {
+    throw new Error("Maksimal 3 penerima (jumlah penukaran 1–3) per transaksi.");
+  }
+
   if (!Array.isArray(rawRecipients)) {
-    throw new Error("Data penerima wajib diisi (minimal 1 penerima: nama, email, dan nomor telepon).");
+    throw new Error("Data penerima wajib diisi (nama, email, dan nomor telepon sesuai jumlah tiket).");
   }
 
   if (rawRecipients.length > 3) {
@@ -267,6 +271,12 @@ export function validateAndNormalizeRecipients(rawRecipients, isRequired) {
     throw new Error("Maksimal 3 penerima yang diperbolehkan.");
   }
 
+  if (expectedQty !== null && normalized.length !== expectedQty) {
+    throw new Error(
+      `Jumlah data penerima (${normalized.length}) harus sesuai dengan jumlah penukaran (${expectedQty}).`
+    );
+  }
+
   const emails = normalized.map((r) => r.email);
   if (new Set(emails).size !== emails.length) {
     throw new Error("Email penerima tidak boleh duplikat.");
@@ -311,10 +321,16 @@ export const redeemProduct = async (
     throw new Error("Product is not active");
   }
 
-  // Validasi data penerima (min 1, maks 3: nama, email, no telp) jika produk membutuhkannya
+  // Jika produk membutuhkan data penerima, batasi jumlah penukaran per transaksi maks 3 dan cocokkan jumlah penerima
+  if (product.require_recipient_emails && qty > 3) {
+    throw new Error("Maksimal 3 penerima (jumlah penukaran 1–3) per transaksi.");
+  }
+
+  // Validasi data penerima (sesuai qty, 1–3 orang: nama, email, no telp) jika produk membutuhkannya
   const normalizedRecipients = validateAndNormalizeRecipients(
     recipientEmails,
-    Boolean(product.require_recipient_emails)
+    Boolean(product.require_recipient_emails),
+    product.require_recipient_emails ? qty : null
   );
 
   // Tentukan registrasi tim target berdasarkan categoryId, registrationId, atau product.category_id
@@ -372,15 +388,21 @@ export const redeemProduct = async (
   const currentRegistration = reg.registration;
   const currentCategory = reg.category;
 
-  // Validasi batas maksimal penukaran per tim (max_redeem_per_team)
+  if (!currentRegistration.is_verified) {
+    throw new Error("Tim Anda belum diverifikasi oleh panitia.");
+  }
+
+  // Validasi batas maksimal penukaran per tim (max_redeem_per_team & is_single_attempt)
   const maxPerTeam = Number(product.max_redeem_per_team) || 0;
-  if (maxPerTeam > 0) {
-    if (qty > maxPerTeam) {
+  const isSingleAttempt = Boolean(product.is_single_attempt);
+  if (maxPerTeam > 0 || isSingleAttempt) {
+    if (maxPerTeam > 0 && qty > maxPerTeam) {
       throw new Error(`Kuantitas melebihi batas maksimal penukaran (${maxPerTeam} item per tim).`);
     }
 
     const [redeemedResult] = await db
       .select({
+        attemptCount: sql`COUNT(*)`.as("attemptCount"),
         totalQuantity: sql`COALESCE(SUM(${schema.Redemption.quantity}), 0)`.as("totalQuantity"),
       })
       .from(schema.Redemption)
@@ -391,16 +413,22 @@ export const redeemProduct = async (
         )
       );
 
-    const alreadyRedeemed = Number(redeemedResult?.totalQuantity || 0);
-    if (alreadyRedeemed >= maxPerTeam) {
-      throw new Error(`Produk ini telah mencapai batas maksimal penukaran (${maxPerTeam} item per tim).`);
+    if (isSingleAttempt && Number(redeemedResult?.attemptCount || 0) >= 1) {
+      throw new Error("Tim Anda sudah menggunakan kesempatan 1 kali penukaran untuk produk ini.");
     }
 
-    if (alreadyRedeemed + qty > maxPerTeam) {
-      const remainingQuota = maxPerTeam - alreadyRedeemed;
-      throw new Error(
-        `Anda hanya dapat menukar ${remainingQuota} item lagi untuk produk ini (maksimal ${maxPerTeam} item per tim).`
-      );
+    const alreadyRedeemed = Number(redeemedResult?.totalQuantity || 0);
+    if (maxPerTeam > 0) {
+      if (alreadyRedeemed >= maxPerTeam) {
+        throw new Error(`Produk ini telah mencapai batas maksimal penukaran (${maxPerTeam} item per tim).`);
+      }
+
+      if (alreadyRedeemed + qty > maxPerTeam) {
+        const remainingQuota = maxPerTeam - alreadyRedeemed;
+        throw new Error(
+          `Anda hanya dapat menukar ${remainingQuota} item lagi untuk produk ini (maksimal ${maxPerTeam} item per tim).`
+        );
+      }
     }
   }
 
@@ -505,10 +533,11 @@ export const redeemProduct = async (
     }
     updatedRegistration = u;
 
-    // 3. Validasi batas kuota tim di dalam transaksi untuk mencegah race condition
-    if (maxPerTeam > 0) {
+    // 3. Validasi batas kuota & attempt tim di dalam transaksi (sesudah row lock Registration) untuk mencegah race condition
+    if (maxPerTeam > 0 || isSingleAttempt) {
       const [txRedeemed] = await tx
         .select({
+          attemptCount: sql`COUNT(*)`.as("attemptCount"),
           totalQuantity: sql`COALESCE(SUM(${schema.Redemption.quantity}), 0)`.as("totalQuantity"),
         })
         .from(schema.Redemption)
@@ -518,8 +547,11 @@ export const redeemProduct = async (
             eq(schema.Redemption.product_id, productId)
           )
         );
+      if (isSingleAttempt && Number(txRedeemed?.attemptCount || 0) >= 1) {
+        throw new Error("Tim Anda sudah menggunakan kesempatan 1 kali penukaran untuk produk ini.");
+      }
       const currentAlreadyRedeemed = Number(txRedeemed?.totalQuantity || 0);
-      if (currentAlreadyRedeemed + qty > maxPerTeam) {
+      if (maxPerTeam > 0 && currentAlreadyRedeemed + qty > maxPerTeam) {
         throw new Error(`Batas maksimal penukaran produk (${maxPerTeam} item per tim) terlampaui.`);
       }
     }
@@ -575,6 +607,7 @@ export const redeemProduct = async (
       reward_xp: updatedProduct.reward_xp,
       is_unlimited_stock: updatedProduct.is_unlimited_stock,
       max_redeem_per_team: updatedProduct.max_redeem_per_team,
+      is_single_attempt: Boolean(updatedProduct.is_single_attempt),
       is_single_redeem: Number(updatedProduct.max_redeem_per_team) === 1,
     },
     quantity: qty,
@@ -727,6 +760,7 @@ export const getAllRedeemUser = async (filters = {}) => {
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
           max_redeem_per_team: row.product.max_redeem_per_team,
+          is_single_attempt: Boolean(row.product.is_single_attempt),
           is_single_redeem: Number(row.product.max_redeem_per_team) === 1,
           reward_xp: row.product.reward_xp,
         }
@@ -850,6 +884,7 @@ export const getMyRedeem = async (userId, filters = {}) => {
           image_url: row.product.image_url,
           is_unlimited_stock: row.product.is_unlimited_stock,
           max_redeem_per_team: row.product.max_redeem_per_team,
+          is_single_attempt: Boolean(row.product.is_single_attempt),
           is_single_redeem: Number(row.product.max_redeem_per_team) === 1,
           reward_xp: row.product.reward_xp,
         }

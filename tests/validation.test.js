@@ -488,6 +488,19 @@ describe("Validation Schemas Suite", () => {
       });
       assert.equal(ticketRes.success, true);
       assert.equal(ticketRes.data.require_recipient_emails, true);
+      assert.equal(ticketRes.data.is_single_attempt, false);
+
+      const singleAttemptTicket = createProductSchema.safeParse({
+        name: "Tiket Kelas Dicoding 1x Attempt",
+        description: "Maks 3 item dan hanya 1x penukaran per tim",
+        price_diamond: 100,
+        max_redeem_per_team: 3,
+        is_single_attempt: true,
+        require_recipient_emails: true,
+      });
+      assert.equal(singleAttemptTicket.success, true);
+      assert.equal(singleAttemptTicket.data.is_single_attempt, true);
+      assert.equal(singleAttemptTicket.data.max_redeem_per_team, 3);
     });
 
     test("validateAndNormalizeRecipientEmails should enforce 1-3 unique valid emails and block formula injection", () => {
@@ -533,6 +546,18 @@ describe("Validation Schemas Suite", () => {
       assert.throws(
         () => validateAndNormalizeRecipientEmails([123], true),
         /Format email penerima/
+      );
+
+      // Invalid domain labels (consecutive dots, leading dot, leading/trailing hyphen) -> throws
+      for (const badEmail of ["user@gmail..com", "user@.com", "user@-gmail.com", "user@gmail-.com"]) {
+        assert.throws(
+          () => validateAndNormalizeRecipientEmails([badEmail], true),
+          /Format email penerima tidak valid/
+        );
+      }
+      assert.deepEqual(
+        validateAndNormalizeRecipientEmails(["u@a-b.id"], true),
+        ["u@a-b.id"]
       );
     });
 
@@ -596,6 +621,32 @@ describe("Validation Schemas Suite", () => {
             true
           ),
         /duplikat/
+      );
+
+      // expectedQty mismatch -> throws; expectedQty exact match -> passes
+      assert.throws(
+        () =>
+          validateAndNormalizeRecipients(
+            [{ name: "Budi", email: "budi@gmail.com", phone: "081234567890" }],
+            true,
+            2
+          ),
+        /harus sesuai dengan jumlah penukaran \(2\)/
+      );
+
+      assert.deepEqual(
+        validateAndNormalizeRecipients(
+          [
+            { name: "Budi", email: "budi@gmail.com", phone: "081234567890" },
+            { name: "Siti", email: "siti@gmail.com", phone: "081398765432" },
+          ],
+          true,
+          2
+        ),
+        [
+          { name: "Budi", email: "budi@gmail.com", phone: "081234567890" },
+          { name: "Siti", email: "siti@gmail.com", phone: "081398765432" },
+        ]
       );
     });
   });

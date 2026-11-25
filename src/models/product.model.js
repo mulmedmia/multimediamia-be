@@ -22,6 +22,7 @@ export const createProductSchema = z
       .default(0),
     is_active: z.boolean().default(true),
     is_unlimited_stock: z.boolean().default(false),
+    is_single_attempt: z.boolean().default(false),
     require_recipient_emails: z.boolean().default(false),
     max_redeem_per_team: z.coerce
       .number({ invalid_type_error: "Max redeem per team must be a number" })
@@ -87,6 +88,7 @@ export const updateProductSchema = z
       .optional(),
     is_active: z.boolean().optional(),
     is_unlimited_stock: z.boolean().optional(),
+    is_single_attempt: z.boolean().optional(),
     require_recipient_emails: z.boolean().optional(),
     max_redeem_per_team: z.coerce
       .number({ invalid_type_error: "Max redeem per team must be a number" })
